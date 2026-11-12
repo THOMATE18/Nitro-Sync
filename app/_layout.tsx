@@ -1,6 +1,6 @@
 /*
 =======================================================
-NITRO SYNC - NAVEGACIÓN PRINCIPAL (STACK)
+NITRO SYNC - NAVEGACIÓN PRINCIPAL (STACKs)
 =======================================================
 
 El Stack Navigator apila las pantallas una encima de otra.
