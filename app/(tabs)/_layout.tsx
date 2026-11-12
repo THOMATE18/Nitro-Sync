@@ -54,7 +54,11 @@ export default function TabsLayout() {
           headerShown: false,
           href: esAdmin ? null : undefined,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -67,7 +71,11 @@ export default function TabsLayout() {
           headerShown: false,
           href: esAdmin ? null : undefined,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'car-sport' : 'car-sport-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'car-sport' : 'car-sport-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -79,7 +87,11 @@ export default function TabsLayout() {
           headerShown: false,
           href: esAdmin ? undefined : null,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -92,7 +104,11 @@ export default function TabsLayout() {
           href: esAdmin ? undefined : null,
           tabBarBadge: pendientes > 0 ? pendientes : undefined,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'mail-unread' : 'mail-unread-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'mail-unread' : 'mail-unread-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -104,7 +120,11 @@ export default function TabsLayout() {
           headerShown: false,
           href: esAdmin ? undefined : null,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'stats-chart' : 'stats-chart-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -116,7 +136,11 @@ export default function TabsLayout() {
           headerShown: false,
           href: esAdmin ? null : undefined,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'star' : 'star-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'star' : 'star-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />
@@ -128,7 +152,11 @@ export default function TabsLayout() {
           title: 'Ajustes',
           headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color} />
+            <Ionicons
+              name={focused ? 'settings' : 'settings-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
           ),
         }}
       />

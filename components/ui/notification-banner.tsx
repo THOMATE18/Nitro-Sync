@@ -91,8 +91,8 @@ export function NotificationBannerProvider({
 
   const [actual, setActual] = useState<BannerOptions | null>(null);
 
-  const translateY = useRef(new Animated.Value(-220)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const [translateY] = useState(() => new Animated.Value(-220));
+  const [opacity] = useState(() => new Animated.Value(0));
   const ocultarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
