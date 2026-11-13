@@ -222,8 +222,15 @@ function RootNavigator() {
         contentStyle: { backgroundColor: Paleta.fondo },
       }}
     >
-      {/* Rutas disponibles cuando existe sesión */}
-      <Stack.Protected guard={!!user}>
+      {/*
+      Rutas disponibles cuando existe sesión.
+
+      `redirectTo` (SDK 58) indica a dónde ir cuando el guard
+      bloquea una ruta. Sin esto, al abrir la web en "/" sin
+      sesión, (tabs) queda fuera del navegador y el usuario
+      veía la pantalla "Unmatched Route" en lugar del login.
+      */}
+      <Stack.Protected guard={!!user} redirectTo="/login">
         {/* Grupo de pestañas: Inicio y Explorar */}
         <Stack.Screen
           name="(tabs)"
@@ -318,7 +325,7 @@ function RootNavigator() {
         />
       </Stack.Protected>
 
-      <Stack.Protected guard={!!user && esAdmin}>
+      <Stack.Protected guard={!!user && esAdmin} redirectTo="/(tabs)">
         <Stack.Screen
           name="admin/vehiculo"
           options={{
@@ -328,7 +335,7 @@ function RootNavigator() {
       </Stack.Protected>
 
       {/* Rutas disponibles cuando NO existe sesión */}
-      <Stack.Protected guard={!user}>
+      <Stack.Protected guard={!user} redirectTo="/(tabs)">
         <Stack.Screen
           name="(auth)"
           options={{ headerShown: false }}

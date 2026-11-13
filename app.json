@@ -21,7 +21,7 @@
       "package": "com.juan_david71.nitrosync"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

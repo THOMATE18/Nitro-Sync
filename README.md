@@ -42,11 +42,52 @@ vehículos: documentos, mantenimientos, recordatorios, gastos y seguro.
 
 | Comando                     | Qué hace                                              |
 | --------------------------- | ----------------------------------------------------- |
-| `npm run web`               | Abre la versión web.                                  |
+| `npm run web`               | Abre la versión web en el navegador del PC.            |
+| `npm run start:lan`         | Arranca Expo con la IP correcta del PC (celular/Expo Go y web). |
+| `npm run start:tunnel`      | Arranca Expo por túnel (sirve si el Wi-Fi bloquea).    |
+| `npm run firewall`          | Permite el puerto 8081 en el Firewall de Windows.      |
+| `npm run net:check`         | Diagnóstico de red (IP, firewall, perfil del Wi-Fi).   |
 | `npm run probar:imagenes`   | Prueba la búsqueda automática de fotos de vehículos.  |
 | `npm run excel:aseguradoras`| Regenera `assets/documentos/aseguradoras.xlsx`.       |
 | `npm run excel:carga-masiva`| Regenera el Excel de ejemplo (50 vehículos) y la plantilla de carga masiva. |
 | `npm run lint`              | Revisa el código con ESLint.                          |
+
+## Ver la app en el celular
+
+1. Conecta el celular y el PC al **mismo Wi-Fi**.
+2. (Primera vez) permite el puerto en el Firewall:
+
+   ```bash
+   npm run firewall
+   ```
+
+   Acepta el aviso de administrador. La regla cubre redes **Privada** y
+   **Pública** (Windows suele marcar el Wi-Fi de casa como Pública).
+
+3. Arranca el servidor con la IP real del PC:
+
+   ```bash
+   npm run start:lan
+   ```
+
+4. En el celular:
+
+   - **App nativa:** escanea el QR con **Expo Go**.
+   - **Versión web:** abre en el navegador `http://IP_DEL_PC:8081`
+     (la terminal muestra la IP, por ejemplo `http://192.168.1.8:8081`).
+
+Si el celular no conecta, revisa `npm run net:check` o usa
+`npm run start:tunnel`.
+
+## Web (Expo Router)
+
+La web usa `"output": "single"` en `app.json`: es una SPA que se sirve desde
+`index.html`. No hay renderizado en servidor porque la app requiere sesión de
+Firebase, así que el arranque de `expo start --web` es más rápido y no genera
+el bundle de SSR.
+
+Las rutas protegidas usan `redirectTo` (SDK 58) en `app/_layout.tsx`, de modo
+que al abrir `/` sin sesión se muestra el login en lugar de "Unmatched Route".
 
 ## Imágenes automáticas
 
