@@ -112,10 +112,15 @@ consultar el estado de la sesión.
 */
 
 function RootNavigator() {
-  const { user, loading, esAdmin } = useAuth();
+  const { user, loading, esAdmin, esAseguradora, esSuperAdmin, debeCambiarContrasena } =
+    useAuth();
   const mostrarBanner = useNotificationBanner();
   const isMountedRef = useRef(true);
   const listenersRef = useRef<any[]>([]);
+
+  /* Gate del primer ingreso: obliga a cambiar la contraseña. */
+  const necesitaCambio = !!user && debeCambiarContrasena;
+  const sesionLista = !!user && !necesitaCambio;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -223,14 +228,23 @@ function RootNavigator() {
       }}
     >
       {/*
-      Rutas disponibles cuando existe sesión.
+      CAMBIO OBLIGATORIO DE CONTRASEÑA (PRIMER INGRESO)
 
-      `redirectTo` (SDK 58) indica a dónde ir cuando el guard
-      bloquea una ruta. Sin esto, al abrir la web en "/" sin
-      sesión, (tabs) queda fuera del navegador y el usuario
-      veía la pantalla "Unmatched Route" en lugar del login.
+      Mientras `debeCambiarContrasena` sea true, la única
+      ruta disponible es esta pantalla. El resto de grupos
+      exige `!necesitaCambio`.
       */}
-      <Stack.Protected guard={!!user} redirectTo="/login">
+      <Stack.Protected guard={necesitaCambio} redirectTo="/(tabs)">
+        <Stack.Screen
+          name="cambiar-contrasena"
+          options={{ headerShown: false }}
+        />
+      </Stack.Protected>
+
+      {/*
+      Rutas disponibles cuando existe sesión.
+      */}
+      <Stack.Protected guard={sesionLista && !esAseguradora} redirectTo="/(auth)/login">
         {/* Grupo de pestañas: Inicio y Explorar */}
         <Stack.Screen
           name="(tabs)"
@@ -325,12 +339,44 @@ function RootNavigator() {
         />
       </Stack.Protected>
 
-      <Stack.Protected guard={!!user && esAdmin} redirectTo="/(tabs)">
+      <Stack.Protected guard={sesionLista && esAdmin} redirectTo="/(tabs)">
         <Stack.Screen
           name="admin/vehiculo"
           options={{
             title: 'Vehículo afiliado',
           }}
+        />
+      </Stack.Protected>
+
+      {/*
+      PANEL DE ASEGURADORA
+
+      Solo para insurer_admin / insurer_agent. La
+      aseguradora opera únicamente con su organización.
+      */}
+      <Stack.Protected
+        guard={sesionLista && esAseguradora}
+        redirectTo="/(tabs)"
+      >
+        <Stack.Screen
+          name="(insurer)"
+          options={{ headerShown: false }}
+        />
+      </Stack.Protected>
+
+      {/*
+      PANEL DE SUPER ADMINISTRADOR (PLATAFORMA)
+
+      Convive con el panel heredado de (tabs): aquí se
+      administran aseguradoras, planes, pagos y auditoría.
+      */}
+      <Stack.Protected
+        guard={sesionLista && esSuperAdmin}
+        redirectTo="/(tabs)"
+      >
+        <Stack.Screen
+          name="(admin)"
+          options={{ headerShown: false }}
         />
       </Stack.Protected>
 

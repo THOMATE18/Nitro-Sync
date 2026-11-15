@@ -1,0 +1,77 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "consents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "propietarioUid", "order": "ASCENDING" },
+        { "fieldPath": "actualizadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vehicleInsurerLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "actualizadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vehicleInsurerLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "propietarioUid", "order": "ASCENDING" },
+        { "fieldPath": "actualizadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "policies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "actualizadaEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "policies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "propietarioUid", "order": "ASCENDING" },
+        { "fieldPath": "actualizadaEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "creadaEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "offers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "propietarioUid", "order": "ASCENDING" },
+        { "fieldPath": "creadaEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "registradoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificationLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

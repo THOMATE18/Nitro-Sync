@@ -288,6 +288,21 @@ export default function LoginScreen() {
                   ¿No tienes una cuenta? Regístrate
                 </Text>
               </Pressable>
+
+              <Pressable
+                style={styles.linkAseguradora}
+                onPress={() => router.push('/(auth)/aseguradora')}
+                accessibilityRole="link"
+              >
+                <Ionicons
+                  name="business-outline"
+                  size={16}
+                  color={Paleta.textoSecundario}
+                />
+                <Text style={styles.linkAseguradoraTexto}>
+                  Ingreso de aseguradoras
+                </Text>
+              </Pressable>
             </>
           )}
         </View>
@@ -492,5 +507,22 @@ const styles = StyleSheet.create({
     color: Paleta.primario,
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  linkAseguradora: {
+    marginTop: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Paleta.borde,
+  },
+
+  linkAseguradoraTexto: {
+    color: Paleta.textoSecundario,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

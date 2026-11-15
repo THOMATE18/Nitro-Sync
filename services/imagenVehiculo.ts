@@ -10,12 +10,16 @@ como imagen del garaje.
 
 ¿Cómo funciona?
 
-  1. lib/busquedaImagenVehiculo.ts consulta Wikimedia
-     Commons y, si hace falta, Wikipedia.
-  2. La URL encontrada pasa por images.weserv.nl para que
+  1. services/carimages.ts consulta la API de CarImages
+     (fotos de estudio por marca, modelo y año). Es la
+     fuente principal.
+  2. Si CarImages no está configurada o falla, se busca en
+     Wikimedia Commons y Wikipedia
+     (lib/busquedaImagenVehiculo.ts).
+  3. La URL de Wikimedia pasa por images.weserv.nl para que
      Android pueda descargarla (Wikimedia responde 403 a
      okhttp, que es el cliente de expo-image).
-  3. El resultado se guarda en memoria y en AsyncStorage
+  4. El resultado se guarda en memoria y en AsyncStorage
      para no repetir la consulta.
 
 Si no hay internet o no se encuentra nada, se devuelve una
@@ -37,6 +41,8 @@ import {
   normalizarUrlImagen,
   type DatosBusquedaImagen,
 } from '@/lib/busquedaImagenVehiculo';
+
+import { buscarImagenCarImages } from '@/services/carimages';
 
 import type { TipoVehiculo } from '@/types/models';
 
@@ -70,9 +76,10 @@ export interface DatosImagen {
 /*
 Versión de la caché: al cambiarla, las imágenes malas que ya
 estaban guardadas (por ejemplo un McLaren con foto de BMW)
-se vuelven a buscar automáticamente.
+se vuelven a buscar automáticamente. La v5 introduce
+CarImages como fuente principal.
 */
-const CLAVE_CACHE = '@nitro_sync/imagenes_vehiculo_v4/';
+const CLAVE_CACHE = '@nitro_sync/imagenes_vehiculo_v5/';
 
 /** Caché en memoria: evita llamadas repetidas en la misma sesión. */
 const cacheMemoria = new Map<string, string>();
@@ -113,22 +120,36 @@ export async function buscarImagenVehiculo(
     /* La caché es opcional: se ignora cualquier fallo. */
   }
 
-  /* 2. Búsqueda real (Commons -> Wikipedia). */
-  const datosBusqueda: DatosBusquedaImagen = {
-    marca: datos.marca,
-    modelo: datos.modelo,
-    tipo: datos.tipo,
-    year: datos.year,
-  };
-
+  /* 2. Fuente principal: CarImages. */
   let encontrada: string | null = null;
 
   try {
-    encontrada = await buscarFotoVehiculo(datosBusqueda, {
-      esWeb: Platform.OS === 'web',
+    encontrada = await buscarImagenCarImages({
+      marca: datos.marca,
+      modelo: datos.modelo,
+      tipo: datos.tipo,
+      year: datos.year,
     });
   } catch {
     encontrada = null;
+  }
+
+  /* 3. Respaldo: búsqueda real (Commons -> Wikipedia). */
+  if (!encontrada) {
+    const datosBusqueda: DatosBusquedaImagen = {
+      marca: datos.marca,
+      modelo: datos.modelo,
+      tipo: datos.tipo,
+      year: datos.year,
+    };
+
+    try {
+      encontrada = await buscarFotoVehiculo(datosBusqueda, {
+        esWeb: Platform.OS === 'web',
+      });
+    } catch {
+      encontrada = null;
+    }
   }
 
   if (encontrada) {
@@ -143,6 +164,6 @@ export async function buscarImagenVehiculo(
     return encontrada;
   }
 
-  /* 3. Genérica. */
+  /* 4. Genérica. */
   return imagenPorDefecto(datos.tipo);
 }

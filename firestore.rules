@@ -2,78 +2,128 @@ rules_version = '2';
 
 /*
 =======================================================
-NITRO SYNC - REGLAS DE FIRESTORE
+NITRO SYNC - REGLAS DE FIRESTORE (MULTI-TENANT)
 =======================================================
 
-ESTRUCTURA PROTEGIDA
+PRINCIPIO GENERAL
 
-  usuarios/{uid}                    -> perfil
-  usuarios/{uid}/vehiculos/{id}     -> vehículos
-  usuarios/{uid}/vehiculos/{id}/... -> documentos,
-                                       mantenimientos,
-                                       recordatorios,
-                                       gastos
-  administradores/{uid}             -> cuentas con rol admin
-  opiniones/{uid}                   -> encuesta de opinión
-  solicitudes/{uid_vehiculoId}      -> pedidos de cotización o renovación
+  Denegar por defecto. Solo se abre lo estrictamente
+  necesario para cada rol. El rol vive en los CUSTOM
+  CLAIMS del token (los asigna el backend con Admin SDK);
+  el perfil de Firestore NO concede privilegios.
 
 ROLES
 
-  usuario        -> solo accede a sus propios datos.
-  administrador  -> su uid existe en administradores/.
-                    Lee todos los vehículos y puede
-                    actualizar únicamente los campos del
-                    seguro. Lee todas las opiniones.
+  customer       -> propietario. Solo sus datos.
+  insurer_agent  -> empleado de aseguradora.
+  insurer_admin  -> administrador de aseguradora.
+  super_admin    -> dueño de la plataforma.
 
-Los administradores se crean SOLO desde la consola de
-Firebase (nadie puede promoverse desde la app).
+ASEGURADORA OPERATIVA
 
-CÓMO APLICAR ESTAS REGLAS
+  Una organización puede operar si su documento existe y:
 
-  Consola de Firebase -> Firestore Database -> Reglas
-  -> pegar este contenido -> Publicar.
+    estado in ['pending', 'active']  &&  accesoHabilitado == true
+
+  Si está `suspended` o con `accesoHabilitado == false`, la
+  aseguradora pierde acceso a los datos de negocio.
+
+COLECCIONES
+
+  usuarios/{uid}                    -> perfil (hereda)
+  usuarios/{uid}/vehiculos/{id}     -> vehículos (hereda)
+  administradores/{uid}             -> super admin heredado
+  opiniones/{uid}                   -> encuestas
+  solicitudes/{id}                  -> cotizaciones
+  organizations/{orgId}             -> aseguradoras
+  plans/{planId}                    -> planes en COP
+  subscriptions/{orgId}             -> suscripción mensual
+  payments/{id}                     -> pagos manuales
+  consents/{id}                     -> consentimiento del dueño
+  vehicleInsurerLinks/{id}          -> proyección vehículo<->aseguradora
+  policies/{id}                     -> pólizas
+  offers/{id}                       -> ofertas de renovación
+  notificationLogs/{id}             -> avisos (WhatsApp)
+  auditLogs/{id}                    -> auditoría
+
+APLICAR
+
+  Consola -> Firestore -> Reglas -> pegar -> Publicar
+  (o `node tools/admin/cli.mjs deploy-rules`).
 =======================================================
 */
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /* -----------------------------------------------
+       AYUDAS DE IDENTIDAD
+    ----------------------------------------------- */
+
     function autenticado() {
       return request.auth != null;
     }
 
-    function esAdmin() {
+    function rol() {
+      return request.auth.token.role;
+    }
+
+    function miOrg() {
+      return request.auth.token.orgId;
+    }
+
+    function esAseguradora() {
+      return autenticado()
+        && (rol() == 'insurer_admin' || rol() == 'insurer_agent');
+    }
+
+    function esSuperAdmin() {
+      return autenticado() && rol() == 'super_admin';
+    }
+
+    /* Cuenta de administrador heredada (colección previa). */
+    function esAdminHeredado() {
       return autenticado()
         && exists(/databases/$(database)/documents/administradores/$(request.auth.uid));
     }
 
-    function calificacionValida(valor) {
-      return valor is int && valor >= 1 && valor <= 5;
+    function esSuper() {
+      return esSuperAdmin() || esAdminHeredado();
     }
 
+    function organizacionOperativa(orgId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgId))
+        && get(/databases/$(database)/documents/organizations/$(orgId)).data.estado in ['pending', 'active']
+        && get(/databases/$(database)/documents/organizations/$(orgId)).data.accesoHabilitado == true;
+    }
+
+    /* Aseguradora con acceso a SU propia organización. */
+    function aseguradoraActiva() {
+      return esAseguradora() && organizacionOperativa(miOrg());
+    }
+
+    /* -----------------------------------------------
+       HEREDADAS (compatibilidad)
+    ----------------------------------------------- */
+
     match /administradores/{uid} {
-      allow read: if autenticado() && request.auth.uid == uid;
+      allow read: if autenticado() && (request.auth.uid == uid || esSuper());
       allow write: if false;
     }
 
     match /usuarios/{uid} {
-      allow read: if esAdmin();
-      allow read, write: if autenticado() && request.auth.uid == uid;
+      allow read: if autenticado() && (request.auth.uid == uid || esSuper());
+      allow write: if autenticado() && request.auth.uid == uid;
     }
 
     match /usuarios/{uid}/{documento=**} {
-      allow read, write: if autenticado()
-                         && request.auth.uid == uid;
-    }
-
-    match /usuarios/{uid}/vehiculos/{vehiculoId}/{subcoleccion=**} {
-      allow read: if esAdmin();
+      allow read, write: if autenticado() && request.auth.uid == uid;
     }
 
     match /{ruta=**}/vehiculos/{vehiculoId} {
-      allow read: if esAdmin();
+      allow read: if esSuper();
 
-      allow update: if esAdmin()
+      allow update: if esSuper()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'aseguradora',
           'telefonoAseguradora',
@@ -84,8 +134,12 @@ service cloud.firestore {
         ]);
     }
 
+    function calificacionValida(valor) {
+      return valor is int && valor >= 1 && valor <= 5;
+    }
+
     match /opiniones/{uid} {
-      allow read: if autenticado() && (request.auth.uid == uid || esAdmin());
+      allow read: if autenticado() && (request.auth.uid == uid || esSuper());
 
       allow create, update: if autenticado()
         && request.auth.uid == uid
@@ -103,7 +157,7 @@ service cloud.firestore {
 
     match /solicitudes/{solicitudId} {
       allow read: if autenticado()
-        && (esAdmin() || resource.data.uid == request.auth.uid);
+        && (esSuper() || resource.data.uid == request.auth.uid);
 
       allow create: if autenticado()
         && request.resource.data.uid == request.auth.uid
@@ -114,7 +168,7 @@ service cloud.firestore {
           && resource.data.uid == request.auth.uid
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.estado == 'Pendiente')
-        || (esAdmin()
+        || (esSuper()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'estado',
             'atendidaPor',
@@ -123,6 +177,162 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    /* -----------------------------------------------
+       ORGANIZACIONES (ASEGURADORAS)
+    ----------------------------------------------- */
+
+    match /organizations/{orgId} {
+      allow read: if esSuper()
+        || (esAseguradora() && miOrg() == orgId);
+
+      /* El super_admin administra el ciclo de vida. */
+      allow create, delete: if esSuper();
+
+      allow update: if esSuper()
+        || (esAseguradora()
+          && miOrg() == orgId
+          && rol() == 'insurer_admin'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'telefono',
+            'web',
+            'whatsapp',
+            'especialidad',
+            'actualizadaEn'
+          ]));
+    }
+
+    /* -----------------------------------------------
+       PLANES
+    ----------------------------------------------- */
+
+    match /plans/{planId} {
+      allow read: if autenticado();
+      allow write: if esSuper();
+    }
+
+    /* -----------------------------------------------
+       SUSCRIPCIONES Y PAGOS
+    ----------------------------------------------- */
+
+    match /subscriptions/{orgId} {
+      allow read: if esSuper()
+        || (esAseguradora() && miOrg() == orgId);
+      allow write: if esSuper();
+    }
+
+    match /payments/{pagoId} {
+      allow read: if esSuper()
+        || (esAseguradora() && miOrg() == resource.data.orgId);
+      allow write: if esSuper();
+    }
+
+    /* -----------------------------------------------
+       CONSENTIMIENTOS
+    ----------------------------------------------- */
+
+    match /consents/{consentId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.propietarioUid == request.auth.uid)
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      /* Solo el propietario otorga o revoca su consentimiento. */
+      allow create, update: if autenticado()
+        && request.resource.data.propietarioUid == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       VÍNCULOS VEHÍCULO <-> ASEGURADORA
+    ----------------------------------------------- */
+
+    match /vehicleInsurerLinks/{vinculoId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.propietarioUid == request.auth.uid)
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      allow create: if esSuper()
+        || (aseguradoraActiva() && request.resource.data.orgId == miOrg());
+
+      allow update: if esSuper()
+        || (aseguradoraActiva() && resource.data.orgId == miOrg())
+        || (autenticado()
+          && resource.data.propietarioUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'estado',
+            'datosPropietarioVisibles',
+            'actualizadoEn'
+          ]));
+
+      allow delete: if esSuper()
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+    }
+
+    /* -----------------------------------------------
+       PÓLIZAS Y OFERTAS
+    ----------------------------------------------- */
+
+    match /policies/{polizaId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.propietarioUid == request.auth.uid)
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      allow write: if esSuper()
+        || (aseguradoraActiva() && request.resource.data.orgId == miOrg());
+    }
+
+    match /offers/{ofertaId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.propietarioUid == request.auth.uid)
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      allow create: if esSuper()
+        || (aseguradoraActiva() && request.resource.data.orgId == miOrg());
+
+      allow update: if esSuper()
+        || (aseguradoraActiva() && resource.data.orgId == miOrg())
+        || (autenticado()
+          && resource.data.propietarioUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'estado',
+            'respondidaEn'
+          ]));
+
+      allow delete: if esSuper();
+    }
+
+    /* -----------------------------------------------
+       AVISOS (WHATSAPP)
+    ----------------------------------------------- */
+
+    match /notificationLogs/{avisoId} {
+      allow read: if esSuper()
+        || (esAseguradora() && resource.data.orgId == miOrg());
+
+      allow create: if esSuper()
+        || (aseguradoraActiva() && request.resource.data.orgId == miOrg());
+
+      allow update: if esSuper()
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       AUDITORÍA
+    ----------------------------------------------- */
+
+    match /auditLogs/{logId} {
+      allow read: if esSuper();
+      allow create: if autenticado()
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    /* -----------------------------------------------
+       CIERRE: todo lo demás, denegado
+    ----------------------------------------------- */
 
     match /{documento=**} {
       allow read, write: if false;
