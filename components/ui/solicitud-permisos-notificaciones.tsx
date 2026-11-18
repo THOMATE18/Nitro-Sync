@@ -48,6 +48,7 @@ import {
 import {
   guardarPreferencias,
   sincronizarNotificacionesVehiculo,
+  sincronizarRecordatorioRacha,
   type PreferenciasNotificacion,
 } from '@/services/notificationService';
 
@@ -59,6 +60,9 @@ function todas(activas: boolean): PreferenciasNotificacion {
     seguro: activas,
     mantenimientos: activas,
     recordatorios: activas,
+    racha: activas,
+    horaRacha: 19,
+    minutoRacha: 0,
   };
 }
 
@@ -179,6 +183,9 @@ export default function SolicitudPermisosNotificaciones() {
       sincronizadosRef.current.add(vehiculo.id);
       sincronizarNotificacionesVehiculo(user.uid, vehiculo.id);
     });
+
+    /* Recordatorio diario de la racha (independiente de vehículos). */
+    sincronizarRecordatorioRacha(user.uid);
   }, [recienConcedido, user, vehiculos]);
 
   return null;

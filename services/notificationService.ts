@@ -47,6 +47,7 @@ import {
   getScheduledNotifications,
   notificacionesSoportadas,
   programarAvisoInmediato,
+  programarNotificacionDiaria,
   scheduleLocalNotification,
 } from '@/lib/notifications';
 
@@ -632,4 +633,94 @@ export async function cancelarRecordatorios(
   ids: string[]
 ): Promise<void> {
   await Promise.all(ids.map((id) => cancelNotification(id)));
+}
+
+/*
+=======================================================
+RECORDATORIO DIARIO DE LA RACHA DE KILOMETRAJE
+=======================================================
+
+Aviso LOCAL que se repite todos los días a la hora elegida
+(por defecto, 7:00 p.m.) para recordar actualizar el
+kilometraje y no perder la racha.
+
+- Se guarda con un identificador ESTABLE por usuario, así
+  al reprogramarlo se reemplaza el anterior.
+- Respeta las preferencias: si `activas` o `racha` están
+  apagadas, se cancela el aviso.
+- En web no hay soporte: la función es segura (no-op).
+=======================================================
+*/
+
+export function identificadorRecordatorioRacha(uid: string): string {
+  return `nitro-racha-${uid}`;
+}
+
+export async function cancelarRecordatorioRacha(
+  uid: string
+): Promise<void> {
+  if (!notificacionesSoportadas) {
+    return;
+  }
+
+  try {
+    const programadas = await getScheduledNotifications();
+    const id = identificadorRecordatorioRacha(uid);
+
+    const delUsuario = programadas.filter(
+      (programada) =>
+        programada.identifier === id ||
+        (programada.content.data as Record<string, any> | null)
+          ?.type === 'racha'
+    );
+
+    await Promise.all(
+      delUsuario.map((programada) =>
+        cancelNotification(programada.identifier)
+      )
+    );
+  } catch (error) {
+    console.warn('No se pudo cancelar el recordatorio de racha:', error);
+  }
+}
+
+export async function sincronizarRecordatorioRacha(
+  uid: string
+): Promise<void> {
+  if (!notificacionesSoportadas) {
+    return;
+  }
+
+  try {
+    const preferencias = await leerPreferencias(uid);
+
+    /* Siempre se limpia el anterior para no duplicar. */
+    await cancelarRecordatorioRacha(uid);
+
+    if (!preferencias.activas || !preferencias.racha) {
+      return;
+    }
+
+    const hora = Math.min(23, Math.max(0, preferencias.horaRacha ?? 19));
+    const minuto = Math.min(59, Math.max(0, preferencias.minutoRacha ?? 0));
+
+    const horaTexto = `${String(hora).padStart(2, '0')}:${String(
+      minuto
+    ).padStart(2, '0')}`;
+
+    await programarNotificacionDiaria({
+      identifier: identificadorRecordatorioRacha(uid),
+      hour: hora,
+      minute: minuto,
+      title: '🔥 No pierdas tu racha',
+      body: `Son las ${horaTexto}. Actualiza el kilometraje de tus vehículos para mantener la racha de hoy.`,
+      data: {
+        type: 'racha',
+        userId: uid,
+        url: '/(tabs)',
+      },
+    });
+  } catch (error) {
+    console.warn('No se pudo programar el recordatorio de racha:', error);
+  }
 }

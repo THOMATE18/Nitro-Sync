@@ -127,6 +127,23 @@ export interface Vehiculo {
     nombre: string;
     telefono: string;
   };
+
+  /*
+  RACHA DE KILOMETRAJE (estilo Duolingo).
+
+  Premia actualizar el kilometraje día tras día. Son campos
+  OPCIONALES: los vehículos que ya existían siguen funcionando
+  y la racha empieza a contarse con la primera actualización.
+
+  - rachaActual: días seguidos actualizando (0 = sin racha).
+  - mejorRacha: la mejor racha histórica (nunca baja).
+  - ultimaRachaFecha: último día que contó ("AAAA-MM-DD").
+  - ultimaActualizacionKm: kilometraje de esa actualización.
+  */
+  rachaActual?: number;
+  mejorRacha?: number;
+  ultimaRachaFecha?: string;
+  ultimaActualizacionKm?: number;
 }
 
 export type VehiculoAdmin = Vehiculo & { propietarioUid: string };
@@ -197,6 +214,13 @@ export type TipoMantenimiento =
   | 'Mantenimiento general'
   | 'Otro';
 
+/*
+Clase de aceite usada en un "Cambio de aceite". Es
+OPCIONAL: los mantenimientos que no son cambios de aceite
+no lo llevan.
+*/
+export type TipoAceite = 'Mineral' | 'Semisintético' | 'Sintético';
+
 export interface Mantenimiento {
   id: string;
   tipo: TipoMantenimiento;
@@ -206,6 +230,19 @@ export interface Mantenimiento {
   descripcion: string;
   taller: string;
   observaciones: string;
+
+  /*
+  Campos OPCIONALES del CAMBIO DE ACEITE (los demás
+  mantenimientos no los llevan, por eso son opcionales y no
+  hace falta migrar nada):
+
+  - tipoAceite: clase de aceite usado ('' si no se eligió).
+  - intervaloAceite: cada cuántos km se repite el cambio.
+    Se guarda 0 cuando se quiere usar el intervalo por
+    defecto del vehículo (Carro 5.000 km / Moto 3.000 km).
+  */
+  tipoAceite?: TipoAceite | '';
+  intervaloAceite?: number;
 }
 
 export type NuevoMantenimiento = Omit<Mantenimiento, 'id'>;
@@ -291,6 +328,57 @@ export interface Opinion {
 }
 
 export type NuevaOpinion = Omit<Opinion, 'uid' | 'email' | 'fecha'>;
+
+/*
+=======================================================
+RESEÑAS DE VEHÍCULOS
+=======================================================
+
+Además de la encuesta general (una por usuario), cada
+propietario puede reseñar SUS vehículos: de 1 a 5
+estrellas más un título y un comentario.
+
+- Una reseña por vehículo y propietario: el id es
+  determinista (uid_vehiculoId), así que editar la reseña
+  no crea documentos nuevos.
+- `leida` la controla el administrador desde la bandeja
+  de opiniones: marca la reseña como leída o no leída.
+  Cuando el propietario la edita vuelve a quedar sin leer.
+=======================================================
+*/
+
+export interface Resena {
+  id: string; // uid_vehiculoId
+  uid: string;
+  email: string;
+  vehiculoId: string;
+  vehiculoNombre: string;
+  placa: string;
+  tipoVehiculo: TipoVehiculo;
+  calificacion: number; // 1..5
+  titulo: string;
+  comentario: string;
+  leida: boolean;
+  fecha: string; // "AAAA-MM-DD"
+  creadaEn: number;
+  actualizadaEn: number;
+}
+
+export type NuevaResena = Pick<
+  Resena,
+  | 'vehiculoId'
+  | 'vehiculoNombre'
+  | 'placa'
+  | 'tipoVehiculo'
+  | 'calificacion'
+  | 'titulo'
+  | 'comentario'
+>;
+
+/** Id determinista de una reseña: una por vehículo y propietario. */
+export function idResena(uid: string, vehiculoId: string): string {
+  return `${uid}_${vehiculoId}`;
+}
 
 
 export type TipoSolicitud = 'Cotización' | 'Renovación';

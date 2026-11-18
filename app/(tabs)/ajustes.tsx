@@ -46,6 +46,7 @@ import {
   guardarPreferencias,
   leerPreferencias,
   sincronizarNotificacionesVehiculo,
+  sincronizarRecordatorioRacha,
   type PreferenciasNotificacion,
 } from '@/services/notificationService';
 import {
@@ -92,7 +93,19 @@ export default function AjustesScreen() {
     seguro: true,
     mantenimientos: true,
     recordatorios: true,
+    racha: true,
+    horaRacha: 19,
+    minutoRacha: 0,
   });
+
+  /* Hora del recordatorio de racha (solo la hora, minuto fijo 0). */
+  const HORAS_RACHA = [6, 8, 12, 17, 19, 20, 21];
+
+  const horaRachaTexto = (hora: number) => {
+    const sufijo = hora < 12 ? 'a.m.' : 'p.m.';
+    const hora12 = hora % 12 === 0 ? 12 : hora % 12;
+    return `${hora12}:00 ${sufijo}`;
+  };
 
   const loadPermissionStatus = async (): Promise<string> => {
     const status = await getNotificationStatus();
@@ -111,6 +124,9 @@ export default function AjustesScreen() {
     /* 2) Firestore: mantiene las preferencias entre dispositivos. */
     const remotas = await leerPreferencias(user.uid);
     setNotificaciones(remotas);
+
+    /* Asegura que el recordatorio diario de racha esté al día. */
+    sincronizarRecordatorioRacha(user.uid);
 
     return remotas;
   };
@@ -239,8 +255,7 @@ export default function AjustesScreen() {
     }
   };
 
-  const togglePreference = (key: keyof typeof notificaciones, value: boolean) => {
-    const newPrefs = { ...notificaciones, [key]: value };
+  const togglePreference = (key: keyof typeof notificaciones, value: boolean) => {    const newPrefs = { ...notificaciones, [key]: value };
     setNotificaciones(newPrefs);
     savePreferences(newPrefs);
 
@@ -251,6 +266,20 @@ export default function AjustesScreen() {
       vehiculos.forEach((vehiculo) => {
         sincronizarNotificacionesVehiculo(user.uid, vehiculo.id);
       });
+
+      /* Reprograma (o cancela) el recordatorio diario de racha. */
+      sincronizarRecordatorioRacha(user.uid);
+    }
+  };
+
+  /* Cambia la hora del recordatorio de racha (minuto fijo en 0). */
+  const setHoraRacha = (hora: number) => {
+    const nuevas = { ...notificaciones, horaRacha: hora, minutoRacha: 0 };
+    setNotificaciones(nuevas);
+    savePreferences(nuevas);
+
+    if (user) {
+      sincronizarRecordatorioRacha(user.uid);
     }
   };
 
@@ -489,6 +518,71 @@ export default function AjustesScreen() {
         </View>
 
         <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <LinearGradient
+              colors={Gradientes.coral}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.cardIcono}
+            >
+              <Ionicons name="flame" size={20} color="#ffffff" />
+            </LinearGradient>
+
+            <View style={styles.cardHeaderTexto}>
+              <Text style={styles.sectionTitle}>Racha de kilometraje</Text>
+
+              <Text style={styles.cardSubtitulo}>
+                Recuerda actualizar tu kilometraje cada día
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.info}>
+            Cada día que actualizas el kilometraje de un vehículo suma a su
+            racha 🔥. Activa el recordatorio diario para no perderla.
+          </Text>
+
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Recordatorio diario</Text>
+            <Switch
+              value={notificaciones.racha && notificaciones.activas}
+              disabled={!notificaciones.activas}
+              onValueChange={(v) => togglePreference('racha', v)}
+            />
+          </View>
+
+          <Text style={styles.labelHora}>Hora del recordatorio</Text>
+
+          <View style={styles.horasFila}>
+            {HORAS_RACHA.map((hora) => {
+              const activo = notificaciones.horaRacha === hora;
+
+              return (
+                <TouchableOpacity
+                  key={hora}
+                  style={[styles.horaChip, activo && styles.horaChipActivo]}
+                  onPress={() => setHoraRacha(hora)}
+                  disabled={!notificaciones.activas || !notificaciones.racha}
+                  activeOpacity={0.85}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: activo }}
+                  accessibilityLabel={`Recordatorio a las ${horaRachaTexto(hora)}`}
+                >
+                  <Text
+                    style={[
+                      styles.horaChipTexto,
+                      activo && styles.horaChipTextoActivo,
+                    ]}
+                  >
+                    {horaRachaTexto(hora)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>Aseguradoras</Text>
 
           <Text style={styles.info}>
@@ -588,6 +682,22 @@ const crearEstilos = (Paleta: TipoPaleta) =>
     testButtonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
     switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Paleta.borde },
     switchLabel: { fontSize: 14, color: Paleta.texto, flex: 1, marginRight: 10 },
+    labelHora: { fontSize: 13, fontWeight: '700', color: Paleta.textoSecundario, marginTop: 14, marginBottom: 8 },
+    horasFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    horaChip: {
+      borderRadius: Radios.pastilla,
+      borderWidth: 2,
+      borderColor: Paleta.borde,
+      backgroundColor: Paleta.fondoAlterno,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    horaChipActivo: {
+      borderColor: Paleta.bordeDuro,
+      backgroundColor: Paleta.acento,
+    },
+    horaChipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
+    horaChipTextoActivo: { color: Paleta.tinta },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Paleta.borde, marginTop: 10 },
     linkRowTexto: { flex: 1, fontSize: 14, fontWeight: '800', color: Paleta.primario },
     logoutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },

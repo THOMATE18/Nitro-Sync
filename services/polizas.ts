@@ -30,6 +30,8 @@ import {
 
 import { db } from '@/firebaseConfig';
 
+import { hoyISO } from '@/utils/fechas';
+
 import type {
   EstadoOferta,
   EstadoPoliza,
@@ -59,6 +61,7 @@ function convertirPoliza(id: string, datos: DocumentData): Poliza {
     estado: (datos.estado ?? 'vigente') as EstadoPoliza,
     creadaEn: Number(datos.creadaEn ?? 0),
     actualizadaEn: Number(datos.actualizadaEn ?? 0),
+    simulado: datos.simulado === true ? true : undefined,
   };
 }
 
@@ -144,6 +147,8 @@ export interface NuevaPoliza {
   vigenciaFin: string;
   primaCop?: number | null;
   estado?: EstadoPoliza;
+  /** F7: las renovaciones se marcan como simuladas. */
+  simulado?: true;
 }
 
 export async function crearPoliza(datos: NuevaPoliza): Promise<string> {
@@ -165,6 +170,7 @@ export async function crearPoliza(datos: NuevaPoliza): Promise<string> {
       estado: datos.estado ?? ('vigente' as EstadoPoliza),
       creadaEn: marca,
       actualizadaEn: marca,
+      ...(datos.simulado ? { simulado: true as const } : {}),
     },
     { merge: true }
   );
@@ -181,6 +187,70 @@ export async function actualizarPoliza(
     ...cambios,
     actualizadaEn: Date.now(),
   });
+}
+
+/*
+=======================================================
+RENOVAR SEGURO (ASEGURADORA)
+
+Acción de la aseguradora desde la ficha del vehículo. Hace
+DOS cosas, en este orden:
+
+  1. Crea/actualiza la PÓLIZA (idempotente por orgId + número;
+     `merge: true`, así que repetir no duplica).
+  2. Actualiza SOLO los campos del seguro del vehículo.
+
+La clave `aseguradoraClave` NO se toca: el vehículo ya
+pertenece a esta aseguradora (de lo contrario no sería
+visible). Eso respeta la regla de escritura, que deja a la
+aseguradora modificar únicamente los campos del seguro y le
+prohíbe cambiar de dueño la clave.
+=======================================================
+*/
+
+export interface RenovacionSeguro {
+  orgId: string;
+  vehiculoId: string;
+  propietarioUid: string;
+  placa: string;
+  /** Nombre visible de la aseguradora (la de la organización). */
+  aseguradora: string;
+  numeroPoliza: string;
+  /** "AAAA-MM-DD" */
+  vigenciaInicio: string;
+  /** "AAAA-MM-DD" */
+  vigenciaFin: string;
+  primaCop?: number | null;
+  producto?: string;
+}
+
+export async function renovarSeguro(datos: RenovacionSeguro): Promise<void> {
+  /* 1. Póliza. */
+  await crearPoliza({
+    vehiculoId: datos.vehiculoId,
+    propietarioUid: datos.propietarioUid,
+    orgId: datos.orgId,
+    producto: datos.producto ?? 'Seguro de vehículo',
+    numero: datos.numeroPoliza,
+    placa: datos.placa,
+    vigenciaInicio: datos.vigenciaInicio,
+    vigenciaFin: datos.vigenciaFin,
+    primaCop: datos.primaCop ?? null,
+    estado: 'vigente',
+    simulado: true,
+  });
+
+  /* 2. Vehículo: SOLO los campos del seguro (nunca la clave). */
+  await updateDoc(
+    doc(db, 'usuarios', datos.propietarioUid, 'vehiculos', datos.vehiculoId),
+    {
+      aseguradora: datos.aseguradora,
+      numeroPoliza: datos.numeroPoliza,
+      vencimientoSeguro: datos.vigenciaFin,
+      seguroAsignadoPor: datos.orgId,
+      seguroAsignadoFecha: hoyISO(),
+    }
+  );
 }
 
 /* -----------------------------------------------

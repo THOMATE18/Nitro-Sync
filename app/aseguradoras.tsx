@@ -56,6 +56,8 @@ import {
 } from '@/constants/theme';
 
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useLineaAtencion } from '@/hooks/use-linea-atencion';
+import { abrirEnlace, enlaceWhatsApp } from '@/utils/contacto';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
@@ -104,29 +106,15 @@ export default function AseguradorasScreen() {
     );
   }, [consulta]);
 
-  const abrirEnlace = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
+  const abrirEnlaceExterno = async (url: string) => {
+    const abierto = await abrirEnlace(url);
+    if (!abierto) {
       await alerta({
         titulo: 'No se pudo abrir',
         mensaje: `Abre manualmente este enlace:\n${url}`,
         tipo: 'advertencia',
       });
     }
-  };
-
-  const llamar = (aseguradora: Aseguradora) =>
-    abrirEnlace(`tel:${telefonoMarcable(aseguradora.telefono)}`);
-
-  const escribirWhatsApp = (aseguradora: Aseguradora) => {
-    if (!aseguradora.whatsapp) {
-      return;
-    }
-
-    const numero = telefonoMarcable(aseguradora.whatsapp).replace('+', '');
-
-    abrirEnlace(`https://wa.me/${numero}`);
   };
 
   const descargarExcel = async () => {
@@ -239,120 +227,11 @@ export default function AseguradorasScreen() {
           </View>
         ) : (
           lista.map((aseguradora) => (
-            <View key={aseguradora.id} style={styles.tarjeta}>
-              <View style={styles.tarjetaFila}>
-                <View
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: aseguradora.color,
-                      borderColor: paleta.bordeDuro,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeTexto,
-                      { color: aseguradora.colorTexto },
-                    ]}
-                  >
-                    {iniciales(aseguradora.nombre)}
-                  </Text>
-                </View>
-
-                <View style={styles.tarjetaInfo}>
-                  <Text style={styles.tarjetaNombre} numberOfLines={1}>
-                    {aseguradora.nombre}
-                  </Text>
-
-                  <Text style={styles.tarjetaEspecialidad} numberOfLines={1}>
-                    {aseguradora.especialidad}
-                  </Text>
-                </View>
-              </View>
-
-              {/* TELÉFONOS */}
-
-              <View style={styles.telefonos}>
-                <View style={styles.telefonoFila}>
-                  <Ionicons
-                    name="call-outline"
-                    size={14}
-                    color={paleta.primario}
-                  />
-
-                  <Text style={styles.telefonoTexto}>
-                    {aseguradora.telefono}
-                  </Text>
-                </View>
-
-                {aseguradora.telefonoGratuito ? (
-                  <View style={styles.telefonoFila}>
-                    <Ionicons
-                      name="headset-outline"
-                      size={14}
-                      color={paleta.textoSecundario}
-                    />
-
-                    <Text style={styles.telefonoTextoSuave}>
-                      Gratuito {aseguradora.telefonoGratuito}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {aseguradora.linea ? (
-                  <View style={styles.telefonoFila}>
-                    <Ionicons
-                      name="phone-portrait-outline"
-                      size={14}
-                      color={paleta.textoSecundario}
-                    />
-
-                    <Text style={styles.telefonoTextoSuave}>
-                      Línea {aseguradora.linea}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* ACCIONES */}
-
-              <View style={styles.acciones}>
-                <BotonNitro
-                  titulo="Llamar"
-                  icono="call"
-                  tamano="pequeno"
-                  onPress={() => llamar(aseguradora)}
-                  style={styles.accionLlamar}
-                />
-
-                {aseguradora.whatsapp ? (
-                  <TouchableOpacity
-                    style={styles.accionIcono}
-                    onPress={() => escribirWhatsApp(aseguradora)}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityLabel={`WhatsApp de ${aseguradora.nombre}`}
-                  >
-                    <Ionicons
-                      name="logo-whatsapp"
-                      size={18}
-                      color="#128C7E"
-                    />
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity
-                  style={styles.accionIcono}
-                  onPress={() => abrirEnlace(aseguradora.web)}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Sitio web de ${aseguradora.nombre}`}
-                >
-                  <Ionicons name="globe-outline" size={18} color={paleta.primario} />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TarjetaAseguradora
+              key={aseguradora.id}
+              aseguradora={aseguradora}
+              abrirEnlace={abrirEnlaceExterno}
+            />
           ))
         )}
 
@@ -387,6 +266,127 @@ export default function AseguradorasScreen() {
           web para consultar los canales oficiales de la aseguradora.
         </Text>
       </ScrollView>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------
+   TARJETA CON LÍNEA DE ATENCIÓN OFICIAL
+
+   El número NO se toma del catálogo local: se lee en tiempo
+   real de `organizations` en Firestore. Llamada y WhatsApp
+   usan exactamente el mismo valor. Si la aseguradora cambia
+   su número desde su panel, esta tarjeta se actualiza sola.
+   ------------------------------------------------------- */
+
+function TarjetaAseguradora({
+  aseguradora,
+  abrirEnlace,
+}: {
+  aseguradora: Aseguradora;
+  abrirEnlace: (url: string) => Promise<void>;
+}) {
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+  const { telefono, cargando } = useLineaAtencion(aseguradora.clave);
+
+  const enlace = enlaceWhatsApp(
+    telefono,
+    `Hola ${aseguradora.nombre}, quiero información sobre seguros de vehículo.`
+  );
+
+  return (
+    <View style={styles.tarjeta}>
+      <View style={styles.tarjetaFila}>
+        <View
+          style={[
+            styles.badge,
+            {
+              backgroundColor: aseguradora.color,
+              borderColor: paleta.bordeDuro,
+            },
+          ]}
+        >
+          <Text style={[styles.badgeTexto, { color: aseguradora.colorTexto }]}>
+            {iniciales(aseguradora.nombre)}
+          </Text>
+        </View>
+
+        <View style={styles.tarjetaInfo}>
+          <Text style={styles.tarjetaNombre} numberOfLines={1}>
+            {aseguradora.nombre}
+          </Text>
+          <Text style={styles.tarjetaEspecialidad} numberOfLines={1}>
+            {aseguradora.especialidad}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.telefonos}>
+        <View style={styles.telefonoFila}>
+          <Ionicons name="call-outline" size={14} color={paleta.primario} />
+          <Text style={styles.telefonoTexto}>
+            {cargando
+              ? 'Consultando línea oficial…'
+              : telefono ?? 'Línea de atención no disponible'}
+          </Text>
+        </View>
+
+        {aseguradora.telefonoGratuito ? (
+          <View style={styles.telefonoFila}>
+            <Ionicons name="headset-outline" size={14} color={paleta.textoSecundario} />
+            <Text style={styles.telefonoTextoSuave}>
+              Gratuito {aseguradora.telefonoGratuito}
+            </Text>
+          </View>
+        ) : null}
+
+        {aseguradora.linea ? (
+          <View style={styles.telefonoFila}>
+            <Ionicons
+              name="phone-portrait-outline"
+              size={14}
+              color={paleta.textoSecundario}
+            />
+            <Text style={styles.telefonoTextoSuave}>Línea {aseguradora.linea}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.acciones}>
+        <BotonNitro
+          titulo="Llamar"
+          icono="call"
+          tamano="pequeno"
+          onPress={() => {
+            if (telefono) void abrirEnlace(`tel:${telefonoMarcable(telefono)}`);
+          }}
+          style={styles.accionLlamar}
+          deshabilitado={!telefono}
+        />
+
+        {enlace ? (
+          <TouchableOpacity
+            style={styles.accionIcono}
+            onPress={() => void abrirEnlace(enlace)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`WhatsApp de ${aseguradora.nombre}`}
+          >
+            <Ionicons name="logo-whatsapp" size={18} color={paleta.exito} />
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.accionIcono}
+          onPress={() => void abrirEnlace(aseguradora.web)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Sitio web de ${aseguradora.nombre}`}
+        >
+          <Ionicons name="globe-outline" size={18} color={paleta.primario} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

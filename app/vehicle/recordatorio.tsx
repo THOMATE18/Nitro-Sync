@@ -35,7 +35,7 @@ import {
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 
 import {
-  ColoresRecordatorio,
+  coloresRecordatorio,
   Radios,
   Sombras,
   type TipoPaleta,
@@ -192,7 +192,7 @@ export default function FormularioRecordatorioScreen() {
      ------------------------------------------------- */
 
   const fechaValida = esFechaISOValida(fecha);
-  const colores = ColoresRecordatorio[estado];
+  const colores = coloresRecordatorio(paleta)[estado];
 
   /* -------------------------------------------------
      VALIDACIÓN
@@ -303,7 +303,7 @@ export default function FormularioRecordatorioScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.contenedor}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen
         options={{
@@ -373,8 +373,8 @@ export default function FormularioRecordatorioScreen() {
                   style={[
                     styles.chip,
                     activo && {
-                      backgroundColor: ColoresRecordatorio[opcion].texto,
-                      borderColor: ColoresRecordatorio[opcion].texto,
+                      backgroundColor: coloresRecordatorio(paleta)[opcion].texto,
+                      borderColor: coloresRecordatorio(paleta)[opcion].texto,
                     },
                   ]}
                   onPress={() => setEstado(opcion)}

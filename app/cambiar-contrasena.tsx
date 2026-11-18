@@ -152,7 +152,7 @@ export default function CambiarContrasenaScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.contenido}
@@ -260,7 +260,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   },
   heroSubtitulo: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.92)',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 300,

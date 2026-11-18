@@ -17,7 +17,7 @@ import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import {
-  ColoresEstado,
+  coloresEstado,
   Radios,
   sombraDura,
   type TipoPaleta,
@@ -26,21 +26,43 @@ import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import { ASEGURADORAS, buscarAseguradora } from '@/data/aseguradoras';
+import { useLineaAtencion } from '@/hooks/use-linea-atencion';
+import {
+  crearCotizacion,
+  suscribirMisCotizaciones,
+} from '@/services/cotizaciones';
+import { formatearCop } from '@/services/facturacion';
 import { guardarTelefono, suscribirPerfil } from '@/services/perfil';
 import {
   crearSolicitud,
   suscribirMisSolicitudes,
 } from '@/services/solicitudes';
 import {
+  registrarPagoSeguro,
+  suscribirPagosSegurosPropietario,
+} from '@/services/pagosSeguros';
+import {
   estadoSeguro,
   nombreAseguradora,
   textoVencimiento,
 } from '@/utils/admin';
-import { esCelularValido, soloDigitos } from '@/utils/contacto';
+import {
+  abrirEnlace,
+  enlaceWhatsApp,
+  esCelularValido,
+  soloDigitos,
+} from '@/utils/contacto';
 
+import {
+  ETIQUETA_ESTADO_COTIZACION,
+  ETIQUETA_ESTADO_PAGO_SEGURO,
+  ETIQUETA_METODO_PAGO,
+  ETIQUETA_SIMULADO,
+  type Cotizacion,
+  type MetodoPagoSimulado,
+  type PagoSeguro,
+} from '@/types/negocio';
 import type { Solicitud, Vehiculo } from '@/types/models';
-
-const SIN_PREFERENCIA = 'Sin preferencia';
 
 export default function MisSegurosScreen() {
   const { user } = useAuth();
@@ -51,13 +73,18 @@ export default function MisSegurosScreen() {
   const { paleta } = useTema();
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+  const [pagosSeguros, setPagosSeguros] = useState<PagoSeguro[]>([]);
   const [telefono, setTelefono] = useState('');
   const telefonoCargado = useRef(false);
 
   const [abierto, setAbierto] = useState<string | null>(null);
-  const [preferida, setPreferida] = useState(SIN_PREFERENCIA);
+  /* Claves de las aseguradoras seleccionadas para cotizar. */
+  const [seleccionadas, setSeleccionadas] = useState<string[]>([]);
   const [nota, setNota] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [guardandoTelefono, setGuardandoTelefono] = useState(false);
+  const [pagoAbierto, setPagoAbierto] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -72,10 +99,20 @@ export default function MisSegurosScreen() {
     });
 
     const limpiarSolicitudes = suscribirMisSolicitudes(user.uid, setSolicitudes);
+    const limpiarCotizaciones = suscribirMisCotizaciones(
+      user.uid,
+      setCotizaciones
+    );
+    const limpiarPagos = suscribirPagosSegurosPropietario(
+      user.uid,
+      setPagosSeguros
+    );
 
     return () => {
       limpiarPerfil();
       limpiarSolicitudes();
+      limpiarCotizaciones();
+      limpiarPagos();
     };
   }, [user]);
 
@@ -86,6 +123,27 @@ export default function MisSegurosScreen() {
 
     return mapa;
   }, [solicitudes]);
+
+  /* Cotizaciones agrupadas por vehículo para mostrar su estado. */
+  const cotizacionesPorVehiculo = useMemo(() => {
+    const mapa = new Map<string, Cotizacion[]>();
+
+    cotizaciones.forEach((cotizacion) => {
+      const lista = mapa.get(cotizacion.vehiculoId) ?? [];
+      lista.push(cotizacion);
+      mapa.set(cotizacion.vehiculoId, lista);
+    });
+
+    return mapa;
+  }, [cotizaciones]);
+
+  const alternarAseguradora = (clave: string) => {
+    setSeleccionadas((actuales) =>
+      actuales.includes(clave)
+        ? actuales.filter((c) => c !== clave)
+        : [...actuales, clave]
+    );
+  };
 
   const enviar = async (vehiculo: Vehiculo) => {
     if (!user) {
@@ -105,7 +163,12 @@ export default function MisSegurosScreen() {
     try {
       setEnviando(true);
 
-      await guardarTelefono(user.uid, soloDigitos(telefono));
+      const celular = soloDigitos(telefono);
+      const elegidas = ASEGURADORAS.filter((a) =>
+        seleccionadas.includes(a.clave)
+      );
+
+      await guardarTelefono(user.uid, celular);
 
       await crearSolicitud({
         uid: user.uid,
@@ -115,18 +178,43 @@ export default function MisSegurosScreen() {
         placa: vehiculo.placa,
         tipoVehiculo: vehiculo.tipo,
         tipo: nombreAseguradora(vehiculo) ? 'Renovación' : 'Cotización',
-        aseguradoraPreferida: preferida === SIN_PREFERENCIA ? '' : preferida,
-        telefono: soloDigitos(telefono),
+        aseguradoraPreferida: elegidas.map((a) => a.nombre).join(', '),
+        telefono: celular,
         nota: nota.trim(),
       });
 
+      /*
+      Además de la solicitud para el administrador, se crea una
+      cotización por cada aseguradora elegida. La aseguradora solo
+      verá las suyas (por `aseguradoraClave`).
+      */
+      await Promise.all(
+        elegidas.map((aseguradora) =>
+          crearCotizacion({
+            uid: user.uid,
+            email: user.email ?? '',
+            vehiculoId: vehiculo.id,
+            vehiculoNombre: vehiculo.nombre,
+            placa: vehiculo.placa,
+            tipoVehiculo: vehiculo.tipo,
+            aseguradoraClave: aseguradora.clave,
+            aseguradora: aseguradora.nombre,
+            telefono: celular,
+            nota: nota.trim(),
+          })
+        )
+      );
+
       setAbierto(null);
       setNota('');
-      setPreferida(SIN_PREFERENCIA);
+      setSeleccionadas([]);
 
       await alerta({
         titulo: 'Solicitud enviada',
-        mensaje: 'Un agente de seguros la verá y te contactará por WhatsApp.',
+        mensaje:
+          elegidas.length > 0
+            ? `Enviamos tu solicitud a ${elegidas.length} aseguradora(s). Te contactarán por WhatsApp.`
+            : 'Un agente de seguros la verá y te contactará por WhatsApp.',
         tipo: 'exito',
       });
     } catch {
@@ -140,29 +228,144 @@ export default function MisSegurosScreen() {
     }
   };
 
+  /*
+  El teléfono del propietario se registra y se puede editar
+  desde este perfil. `guardarTelefono` lo propaga a los
+  vehículos y a las proyecciones que lee la aseguradora.
+  */
+  const guardarMiTelefono = async () => {
+    if (!user) return;
+
+    if (!esCelularValido(telefono)) {
+      await alerta({
+        titulo: 'Revisa tu teléfono',
+        mensaje:
+          'Escribe un celular colombiano de 10 dígitos que empiece por 3.',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    try {
+      setGuardandoTelefono(true);
+      await guardarTelefono(user.uid, soloDigitos(telefono));
+      await alerta({
+        titulo: 'Teléfono actualizado',
+        mensaje:
+          'Tu aseguradora ya puede ver el nuevo número en tus vehículos vinculados.',
+        tipo: 'exito',
+      });
+    } catch {
+      await alerta({
+        titulo: 'No se pudo guardar',
+        mensaje: 'Intenta de nuevo en unos segundos.',
+        tipo: 'error',
+      });
+    } finally {
+      setGuardandoTelefono(false);
+    }
+  };
+
+  const nombreVehiculoPago = (id: string) => {
+    const vehiculo = vehiculos.find((v) => v.id === id);
+    return vehiculo
+      ? `${vehiculo.nombre}${vehiculo.placa ? ` · ${vehiculo.placa}` : ''}`
+      : id.slice(0, 8);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.contenido}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.tarjeta}>
-          <Text style={styles.seccion}>Tu WhatsApp</Text>
+          <Text style={styles.seccion}>Tu teléfono de contacto</Text>
           <Text style={styles.ayuda}>
-            Lo usará el agente de seguros para enviarte la cotización.
+            Lo usará tu aseguradora para contactarte. Guárdalo cuando lo cambies:
+            se actualiza automáticamente en tus vehículos vinculados.
           </Text>
           <TextInput
             style={styles.input}
             value={telefono}
             onChangeText={setTelefono}
             placeholder="3001234567"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
             keyboardType="phone-pad"
             maxLength={13}
           />
+          <BotonNitro
+            titulo="Guardar teléfono"
+            icono="save-outline"
+            tamano="pequeno"
+            onPress={guardarMiTelefono}
+            cargando={guardandoTelefono}
+          />
+        </View>
+
+        {/* Pagos simulados registrados por el cliente. */}
+        <View style={styles.tarjeta}>
+          <View style={styles.pagoCabecera}>
+            <Text style={styles.seccion}>Pagos de tus seguros</Text>
+            <View style={styles.simuladoPill}>
+              <Text style={styles.simuladoTexto}>{ETIQUETA_SIMULADO}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.ayuda}>
+            Registra aquí tus pagos simulados. La aseguradora los confirma o
+            rechaza desde su panel; una vez respondidos son inmutables. No se ha
+            cobrado ningún dinero.
+          </Text>
+
+          {pagosSeguros.length === 0 ? (
+            <Text style={styles.ayuda}>No hay pagos registrados por ahora.</Text>
+          ) : (
+            pagosSeguros.map((pago) => (
+              <View key={pago.id} style={styles.pagoFila}>
+                <View style={styles.pagoTextos}>
+                  <Text style={styles.pagoTitulo}>
+                    {nombreVehiculoPago(pago.vehiculoId)}
+                  </Text>
+                  <Text style={styles.detalle}>
+                    {pago.periodo} · {pago.producto}
+                  </Text>
+                  <Text style={styles.detalle}>
+                    Ref. {pago.referencia ?? ETIQUETA_SIMULADO}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.pagoEstado,
+                      {
+                        color:
+                          pago.estado === 'confirmado'
+                            ? paleta.textoExito
+                            : pago.estado === 'rechazado'
+                              ? paleta.textoPeligro
+                              : paleta.textoAdvertencia,
+                      },
+                    ]}
+                  >
+                    {ETIQUETA_ESTADO_PAGO_SEGURO[pago.estado]}
+                  </Text>
+                </View>
+
+                <View style={styles.pagoDerecha}>
+                  <Text style={styles.pagoMonto}>
+                    {formatearCop(pago.montoCop)}
+                  </Text>
+                  <Text style={styles.detalle}>
+                    {pago.metodoPago
+                      ? ETIQUETA_METODO_PAGO[pago.metodoPago]
+                      : ETIQUETA_SIMULADO}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         {!cargando && vehiculos.length === 0 && (
@@ -179,11 +382,13 @@ export default function MisSegurosScreen() {
             estado === 'Vigente' ||
             estado === 'Proximo a vencer' ||
             estado === 'Vencido'
-              ? ColoresEstado[estado]
+              ? coloresEstado(paleta)[estado]
               : null;
           const solicitud = porVehiculo.get(vehiculo.id);
           const pendiente = solicitud?.estado === 'Pendiente';
           const atendida = solicitud?.estado === 'Atendida';
+          const cotizacionesVehiculo =
+            cotizacionesPorVehiculo.get(vehiculo.id) ?? [];
           const etiquetaBoton = aseguradora
             ? 'Solicitar renovación'
             : 'Solicitar cotización';
@@ -216,7 +421,7 @@ export default function MisSegurosScreen() {
                       <Text
                         style={[
                           styles.aseguradoraTexto,
-                          { color: marca?.colorTexto ?? '#FFFFFF' },
+                          { color: marca?.colorTexto ?? paleta.blanco },
                         ]}
                       >
                         {aseguradora}
@@ -260,6 +465,39 @@ export default function MisSegurosScreen() {
                 </View>
               ) : null}
 
+              {aseguradora ? (
+                <LineaAtencionAseguradora
+                  clave={marca?.clave ?? null}
+                  nombre={aseguradora}
+                />
+              ) : null}
+
+              {aseguradora ? (
+                <View style={styles.formulario}>
+                  <BotonNitro
+                    titulo={
+                      pagoAbierto === vehiculo.id
+                        ? 'Ocultar formulario de pago'
+                        : `Registrar pago (${ETIQUETA_SIMULADO})`
+                    }
+                    icono="cash-outline"
+                    tamano="pequeno"
+                    variante="secundario"
+                    onPress={() =>
+                      setPagoAbierto(
+                        pagoAbierto === vehiculo.id ? null : vehiculo.id
+                      )
+                    }
+                  />
+                  {pagoAbierto === vehiculo.id ? (
+                    <FormularioPagoSeguro
+                      vehiculo={vehiculo}
+                      onListo={() => setPagoAbierto(null)}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+
               {pendiente && (
                 <View style={styles.aviso}>
                   <Ionicons name="time-outline" size={16} color={paleta.advertencia} />
@@ -278,32 +516,60 @@ export default function MisSegurosScreen() {
                 </View>
               )}
 
+              {cotizacionesVehiculo.length > 0 ? (
+                <View style={styles.cotizaciones}>
+                  <Text style={styles.cotizacionesTitulo}>
+                    Cotizaciones enviadas
+                  </Text>
+
+                  {cotizacionesVehiculo.map((cotizacion) => (
+                    <View key={cotizacion.id} style={styles.cotizacionFila}>
+                      <Text style={styles.cotizacionNombre} numberOfLines={1}>
+                        {cotizacion.aseguradora}
+                      </Text>
+                      <View style={styles.cotizacionEstado}>
+                        <Text style={styles.cotizacionEstadoTexto}>
+                          {ETIQUETA_ESTADO_COTIZACION[cotizacion.estado]}
+                        </Text>
+                        {cotizacion.primaCop ? (
+                          <Text style={styles.cotizacionPrima}>
+                            ${cotizacion.primaCop.toLocaleString('es-CO')}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
               {abierto === vehiculo.id ? (
                 <View style={styles.formulario}>
-                  <Text style={styles.etiqueta}>Aseguradora preferida</Text>
+                  <Text style={styles.etiqueta}>
+                    Aseguradoras para cotizar (elige una o varias)
+                  </Text>
                   <View style={styles.chips}>
-                    {[SIN_PREFERENCIA, ...ASEGURADORAS.map((a) => a.nombre)].map(
-                      (nombre) => {
-                        const activo = preferida === nombre;
+                    {ASEGURADORAS.map((aseguradora) => {
+                      const activo = seleccionadas.includes(aseguradora.clave);
 
-                        return (
-                          <Pressable
-                            key={nombre}
-                            onPress={() => setPreferida(nombre)}
-                            style={[styles.chip, activo && styles.chipActivo]}
+                      return (
+                        <Pressable
+                          key={aseguradora.clave}
+                          onPress={() => alternarAseguradora(aseguradora.clave)}
+                          style={[styles.chip, activo && styles.chipActivo]}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: activo }}
+                        >
+                          <Text
+                            style={[
+                              styles.chipTexto,
+                              activo && styles.chipTextoActivo,
+                            ]}
                           >
-                            <Text
-                              style={[
-                                styles.chipTexto,
-                                activo && styles.chipTextoActivo,
-                              ]}
-                            >
-                              {nombre}
-                            </Text>
-                          </Pressable>
-                        );
-                      }
-                    )}
+                            {aseguradora.nombre}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
 
                   <Text style={styles.etiqueta}>Nota para el agente (opcional)</Text>
@@ -330,7 +596,10 @@ export default function MisSegurosScreen() {
                     titulo="Cancelar"
                     variante="fantasma"
                     tamano="pequeno"
-                    onPress={() => setAbierto(null)}
+                    onPress={() => {
+                      setAbierto(null);
+                      setSeleccionadas([]);
+                    }}
                   />
                 </View>
               ) : (
@@ -342,7 +611,7 @@ export default function MisSegurosScreen() {
                   onPress={() => {
                     setAbierto(vehiculo.id);
                     setNota('');
-                    setPreferida(SIN_PREFERENCIA);
+                    setSeleccionadas([]);
                   }}
                 />
               )}
@@ -351,6 +620,211 @@ export default function MisSegurosScreen() {
         })}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/*
+LÍNEA DE ATENCIÓN OFICIAL (SOLO LECTURA)
+
+El número se lee en tiempo real de `organizations` en
+Firestore. El botón de WhatsApp usa EXACTAMENTE el mismo
+número que se muestra aquí; no hay números escritos a mano
+en la pantalla.
+*/
+function LineaAtencionAseguradora({
+  clave,
+  nombre,
+}: {
+  clave: string | null;
+  nombre: string;
+}) {
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+  const { telefono, cargando } = useLineaAtencion(clave);
+  const enlace = enlaceWhatsApp(
+    telefono,
+    `Hola ${nombre}, necesito información sobre mi seguro en Nitro Sync.`
+  );
+
+  return (
+    <View style={styles.linea}>
+      <View style={styles.lineaTextos}>
+        <Text style={styles.lineaTitulo}>Línea de atención de {nombre}</Text>
+        <Text style={styles.detalle} accessibilityLabel="Teléfono oficial">
+          {cargando
+            ? 'Consultando número oficial…'
+            : telefono
+              ? telefono
+              : 'La aseguradora aún no ha registrado su línea de atención.'}
+        </Text>
+      </View>
+      {enlace ? (
+        <Pressable
+          style={[styles.botonWhatsapp, { borderColor: paleta.exito }]}
+          onPress={() => void abrirEnlace(enlace)}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir WhatsApp con ${nombre}`}
+        >
+          <Ionicons name="logo-whatsapp" size={18} color={paleta.exito} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/* REGISTRO DE PAGO SIMULADO POR EL CLIENTE */
+function FormularioPagoSeguro({
+  vehiculo,
+  onListo,
+}: {
+  vehiculo: Vehiculo;
+  onListo: () => void;
+}) {
+  const { user } = useAuth();
+  const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+
+  const aseguradora = nombreAseguradora(vehiculo);
+  const clave = buscarAseguradora(aseguradora)?.clave ?? null;
+  const { organizacion } = useLineaAtencion(clave);
+
+  const [periodo, setPeriodo] = useState('');
+  const [monto, setMonto] = useState('');
+  const [concepto, setConcepto] = useState('Pago de seguro');
+  const [metodo, setMetodo] = useState<MetodoPagoSimulado>('transferencia');
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [guardando, setGuardando] = useState(false);
+
+  const registrar = async () => {
+    if (!user || !organizacion) {
+      await alerta({
+        titulo: 'Aseguradora no disponible',
+        mensaje:
+          'No pudimos identificar la organización de esta aseguradora. Intenta de nuevo en unos segundos.',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    const montoCop = Number(monto.replace(/[^\d]/g, ''));
+
+    if (!periodo.trim() || !Number.isFinite(montoCop) || montoCop <= 0) {
+      await alerta({
+        titulo: 'Datos incompletos',
+        mensaje: 'Escribe el periodo (ej. 2026-11) y un monto mayor a cero.',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    try {
+      setGuardando(true);
+
+      await registrarPagoSeguro({
+        orgId: organizacion.id,
+        orgNombre: organizacion.nombre,
+        vehiculoId: vehiculo.id,
+        propietarioUid: user.uid,
+        clienteNombre: user.email?.split('@')[0] ?? 'Cliente',
+        polizaId: null,
+        producto: aseguradora || 'Seguro de vehículo',
+        concepto: concepto.trim() || 'Pago de seguro',
+        periodo: periodo.trim(),
+        montoCop,
+        metodoPago: metodo,
+        fechaOperacion: fecha,
+        registradoPor: user.uid,
+      });
+
+      await alerta({
+        titulo: `Pago registrado (${ETIQUETA_SIMULADO})`,
+        mensaje:
+          'Queda PENDIENTE de que la aseguradora lo confirme o rechace. No se ha cobrado ningún dinero.',
+        tipo: 'exito',
+      });
+
+      setPeriodo('');
+      setMonto('');
+      onListo();
+    } catch (error) {
+      await alerta({
+        titulo: 'No se pudo registrar',
+        mensaje:
+          error instanceof Error ? error.message : 'Intenta de nuevo en unos segundos.',
+        tipo: 'error',
+      });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <View style={styles.formularioPago}>
+      <Text style={styles.etiqueta}>Periodo</Text>
+      <TextInput
+        style={styles.input}
+        value={periodo}
+        onChangeText={setPeriodo}
+        placeholder="2026-11"
+        placeholderTextColor={paleta.textoSuave}
+      />
+
+      <Text style={styles.etiqueta}>Monto (COP)</Text>
+      <TextInput
+        style={styles.input}
+        value={monto}
+        onChangeText={setMonto}
+        placeholder="343300"
+        placeholderTextColor={paleta.textoSuave}
+        keyboardType="numeric"
+      />
+
+      <Text style={styles.etiqueta}>Concepto</Text>
+      <TextInput
+        style={styles.input}
+        value={concepto}
+        onChangeText={setConcepto}
+        placeholder="Pago de seguro"
+        placeholderTextColor={paleta.textoSuave}
+      />
+
+      <Text style={styles.etiqueta}>Método (simulado)</Text>
+      <View style={styles.chips}>
+        {(
+          ['transferencia', 'efectivo', 'tarjeta', 'otro'] as MetodoPagoSimulado[]
+        ).map((opcion) => (
+          <Pressable
+            key={opcion}
+            onPress={() => setMetodo(opcion)}
+            style={[styles.chip, metodo === opcion && styles.chipActivo]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: metodo === opcion }}
+          >
+            <Text style={[styles.chipTexto, metodo === opcion && styles.chipTextoActivo]}>
+              {ETIQUETA_METODO_PAGO[opcion]}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.etiqueta}>Fecha de la operación</Text>
+      <TextInput
+        style={styles.input}
+        value={fecha}
+        onChangeText={setFecha}
+        placeholder="AAAA-MM-DD"
+        placeholderTextColor={paleta.textoSuave}
+      />
+
+      <BotonNitro
+        titulo={`Enviar pago (${ETIQUETA_SIMULADO})`}
+        icono="send"
+        tamano="pequeno"
+        onPress={registrar}
+        cargando={guardando}
+      />
+    </View>
   );
 }
 
@@ -433,5 +907,106 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   },
   chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.bordeDuro },
   chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
-  chipTextoActivo: { color: '#FFFFFF' },
+  chipTextoActivo: { color: Paleta.blanco },
+  cotizaciones: {
+    backgroundColor: Paleta.fondo,
+    borderRadius: Radios.suave,
+    padding: 12,
+    gap: 8,
+  },
+  cotizacionesTitulo: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: Paleta.textoSecundario,
+    letterSpacing: 0.3,
+  },
+  cotizacionFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  cotizacionNombre: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Paleta.texto,
+  },
+  cotizacionEstado: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cotizacionEstadoTexto: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Paleta.primario,
+  },
+  cotizacionPrima: { fontSize: 12, fontWeight: '900', color: Paleta.texto },
+
+  /* F7 · pagos simulados */
+  pagoCabecera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  simuladoPill: {
+    backgroundColor: Paleta.primarioClaro,
+    borderRadius: Radios.pastilla,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  simuladoTexto: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: Paleta.primario,
+  },
+  pagoFila: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: Paleta.borde,
+  },
+  pagoTextos: { flex: 1, gap: 2 },
+  pagoTitulo: { fontSize: 13.5, fontWeight: '900', color: Paleta.texto },
+  pagoEstado: { fontSize: 11, fontWeight: '900', marginTop: 2 },
+  pagoDerecha: { alignItems: 'flex-end', gap: 8 },
+  pagoMonto: { fontSize: 13, fontWeight: '900', color: Paleta.texto },
+  pagoBotones: { flexDirection: 'row', gap: 8 },
+  botonPago: {
+    width: 32,
+    height: 32,
+    borderRadius: Radios.suave,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* Línea de atención oficial y registro de pagos del cliente */
+  linea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Paleta.fondo,
+    borderWidth: 1,
+    borderColor: Paleta.borde,
+    borderRadius: Radios.suave,
+    padding: 10,
+  },
+  lineaTextos: { flex: 1, gap: 2 },
+  lineaTitulo: { fontSize: 12, fontWeight: '900', color: Paleta.texto },
+  botonWhatsapp: {
+    width: 40,
+    height: 40,
+    borderRadius: Radios.suave,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formularioPago: {
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: Paleta.borde,
+  },
 });

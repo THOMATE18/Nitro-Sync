@@ -13,10 +13,11 @@ aseguradora puede ver de sus vehículos:
 No muestra gastos, mantenimientos, documentos, ubicación ni
 correo: esos datos no están disponibles para la aseguradora.
 
-Incluye el botón "Contactar por WhatsApp" que usa el
-constructor único `enlaceWhatsApp` (misma lógica del panel
-admin) y avisa al contenedor con `onContactar` para que
-registre la acción en auditoría.
+Incluye los botones "Contactar por WhatsApp" y "Llamar"
+(misma lógica del panel admin, con el constructor único
+`enlaceWhatsApp` / `enlaceLlamada`) y avisa al contenedor
+con `onContactar` / `onLlamar` para que registre la acción
+en auditoría.
 =======================================================
 */
 
@@ -26,11 +27,11 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { ColoresEstado, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { Radios, Sombras, coloresEstado, type TipoPaleta } from '@/constants/theme';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import { estadoSeguro, textoVencimiento, type EstadoSeguro } from '@/utils/admin';
-import { enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
+import { enlaceLlamada, enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
 
 import type { VehiculoAdmin } from '@/types/models';
 
@@ -53,6 +54,8 @@ interface Props {
   vehiculo: VehiculoAdmin;
   /** Se llama al abrir WhatsApp (para auditoría). */
   onContactar?: (vehiculo: VehiculoAdmin) => void;
+  /** Se llama al abrir la llamada telefónica (para auditoría). */
+  onLlamar?: (vehiculo: VehiculoAdmin) => void;
   /** Se llama al abrir la ficha/detalle (para auditoría). */
   onAbrir?: (vehiculo: VehiculoAdmin) => void;
   /** Se llama al pedir la renovación (para auditoría). */
@@ -62,6 +65,7 @@ interface Props {
 export default function TarjetaVehiculoAseguradora({
   vehiculo,
   onContactar,
+  onLlamar,
   onAbrir,
   onRenovar,
 }: Props) {
@@ -73,7 +77,7 @@ export default function TarjetaVehiculoAseguradora({
   const estado = estadoSeguro(vehiculo);
   const color =
     estado === 'Vigente' || estado === 'Proximo a vencer' || estado === 'Vencido'
-      ? ColoresEstado[estado]
+      ? coloresEstado(paleta)[estado]
       : null;
 
   const contacto = vehiculo.contactoPropietario;
@@ -91,6 +95,15 @@ export default function TarjetaVehiculoAseguradora({
     if (!enlace) return;
 
     onContactar?.(vehiculo);
+    Linking.openURL(enlace);
+  };
+
+  const llamar = () => {
+    const enlace = enlaceLlamada(telefono);
+
+    if (!enlace) return;
+
+    onLlamar?.(vehiculo);
     Linking.openURL(enlace);
   };
 
@@ -213,6 +226,17 @@ export default function TarjetaVehiculoAseguradora({
           </Pressable>
 
           <Pressable
+            style={[styles.botonAccion, !telefono && styles.botonInactivo]}
+            onPress={llamar}
+            disabled={!telefono}
+            accessibilityRole="button"
+            accessibilityLabel="Llamar al propietario"
+          >
+            <Ionicons name="call" size={16} color={paleta.primario} />
+            <Text style={styles.botonAccionTexto}>Llamar</Text>
+          </Pressable>
+
+          <Pressable
             style={styles.botonAccion}
             onPress={renovar}
             accessibilityRole="button"
@@ -276,9 +300,10 @@ const crearEstilos = (Paleta: TipoPaleta) =>
       alignSelf: 'flex-start',
     },
     detalleTexto: { fontSize: 12, fontWeight: '800', color: Paleta.primario },
-    acciones: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    acciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
     botonAccion: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: 92,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -286,7 +311,7 @@ const crearEstilos = (Paleta: TipoPaleta) =>
       borderWidth: 1.5,
       borderColor: Paleta.primario,
       borderRadius: Radios.pastilla,
-      paddingHorizontal: 12,
+      paddingHorizontal: 10,
       paddingVertical: 9,
     },
     botonInactivo: { opacity: 0.55 },

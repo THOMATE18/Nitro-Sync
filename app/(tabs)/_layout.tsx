@@ -23,10 +23,12 @@ import { Tabs } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useTema } from '@/context/TemaContext';
 import { useSolicitudesPendientes } from '@/hooks/use-solicitudes-pendientes';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
   const { esAdmin } = useAuth();
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
   const pendientes = useSolicitudesPendientes(esAdmin);
 
   return (
@@ -39,6 +41,9 @@ export default function TabsLayout() {
           borderTopWidth: 2,
           borderTopColor: paleta.bordeDuro,
           paddingTop: 6,
+          /* Suma el área segura inferior para que ningún botón quede tapado. */
+          height: 58 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 6),
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -90,6 +95,23 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'}
+              size={size}
+              color={color == null || typeof color === 'number' ? undefined : color}
+            />
+          ),
+        }}
+      />
+
+      {/* PESTAÑA: SUSCRIPCIONES (solo súper administrador) */}
+      <Tabs.Screen
+        name="suscripciones"
+        options={{
+          title: 'Suscripciones',
+          headerShown: false,
+          href: esAdmin ? undefined : null,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'card' : 'card-outline'}
               size={size}
               color={color == null || typeof color === 'number' ? undefined : color}
             />

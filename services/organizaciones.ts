@@ -22,6 +22,7 @@ import {
   orderBy,
   query,
   setDoc,
+  where,
   updateDoc,
   type DocumentData,
 } from 'firebase/firestore';
@@ -35,9 +36,19 @@ import type { EstadoOrganizacion, Organizacion } from '@/types/negocio';
 const COLECCION = 'organizations';
 
 function convertir(id: string, datos: DocumentData): Organizacion {
+  const nombre = String(datos.nombre ?? 'Sin nombre');
+
+  /*
+  La clave se calcula SIEMPRE a partir del nombre. Si el
+  documento ya la trae se respeta; si no (organizaciones
+  creadas antes de que existiera el campo), se deriva aquí
+  para que el panel funcione sin intervención manual.
+  */
+  const claveGuardada = String(datos.aseguradoraClave ?? '');
+
   return {
     id,
-    nombre: String(datos.nombre ?? 'Sin nombre'),
+    nombre,
     slug: String(datos.slug ?? id),
     correo: datos.correo ?? null,
     telefono: datos.telefono ?? null,
@@ -49,7 +60,8 @@ function convertir(id: string, datos: DocumentData): Organizacion {
     accesoHabilitado: datos.accesoHabilitado !== false,
     creadaEn: datos.creadaEn ?? null,
     actualizadaEn: datos.actualizadaEn ?? null,
-    aseguradoraClave: datos.aseguradoraClave ?? null,
+    aseguradoraClave: claveGuardada || claveAseguradora(nombre) || null,
+    telefonoContacto: datos.telefonoContacto ?? null,
   };
 }
 
@@ -66,6 +78,32 @@ export function suscribirOrganizaciones(
     query(collection(db, COLECCION), orderBy('nombre')),
     (snapshot) => {
       onData(snapshot.docs.map((documento) => convertir(documento.id, documento.data())));
+    },
+    (error) => onError?.(error)
+  );
+}
+
+/**
+ * Organización por clave normalizada de aseguradora.
+ * Los clientes la usan para leer la LÍNEA DE ATENCIÓN en
+ * tiempo real (una sola condición: sin índice compuesto).
+ */
+export function suscribirOrganizacionPorClave(
+  clave: string | null,
+  onData: (organizacion: Organizacion | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!clave) {
+    onData(null);
+    return () => {};
+  }
+
+  return onSnapshot(
+    query(collection(db, COLECCION), where('aseguradoraClave', '==', clave)),
+    (instantanea) => {
+      onData(
+        instantanea.empty ? null : convertir(instantanea.docs[0].id, instantanea.docs[0].data())
+      );
     },
     (error) => onError?.(error)
   );
@@ -94,7 +132,10 @@ export function suscribirOrganizacion(
 export async function actualizarOrganizacion(
   orgId: string,
   cambios: Partial<
-    Pick<Organizacion, 'estado' | 'accesoHabilitado' | 'aseguradoraClave'>
+    Pick<
+      Organizacion,
+      'estado' | 'accesoHabilitado' | 'aseguradoraClave' | 'telefonoContacto'
+    >
   >
 ): Promise<void> {
   await updateDoc(organizacionRef(orgId), {
@@ -130,6 +171,7 @@ export async function crearOrganizacion(datos: NuevaOrganizacion): Promise<strin
     creadaEn: marca,
     actualizadaEn: marca,
     aseguradoraClave: claveAseguradora(datos.nombre) || null,
+    telefonoContacto: null,
   });
 
   return datos.slug;

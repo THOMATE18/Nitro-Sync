@@ -19,7 +19,7 @@ import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import SelectorFecha from '@/components/ui/selector-fecha';
 import {
-  ColoresEstado,
+  coloresEstado,
   Radios,
   sombraDura,
   type TipoPaleta,
@@ -38,7 +38,7 @@ import {
   textoVencimiento,
   unAnioDespues,
 } from '@/utils/admin';
-import { enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
+import { enlaceLlamada, enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
 import { calcularEstado, hoyISO } from '@/utils/fechas';
 
 import type { Documento, Perfil, Solicitud, Vehiculo } from '@/types/models';
@@ -120,7 +120,7 @@ export default function AdminVehiculoScreen() {
   const estado = estadoSeguro(vehiculo);
   const colorEstado =
     estado === 'Vigente' || estado === 'Proximo a vencer' || estado === 'Vencido'
-      ? ColoresEstado[estado]
+      ? coloresEstado(paleta)[estado]
       : null;
 
   const llamar = () => {
@@ -139,7 +139,9 @@ export default function AdminVehiculoScreen() {
   };
 
   const llamarCliente = () => {
-    Linking.openURL(`tel:+${telefonoCliente.length === 10 ? `57${telefonoCliente}` : telefonoCliente}`);
+    const enlace = enlaceLlamada(telefonoCliente);
+
+    if (enlace) Linking.openURL(enlace);
   };
 
   const escribirCorreo = () => {
@@ -246,7 +248,7 @@ export default function AdminVehiculoScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.contenido}
@@ -463,7 +465,7 @@ export default function AdminVehiculoScreen() {
             <Text style={styles.vacio}>Sin documentos registrados.</Text>
           ) : (
             documentos.map((documento) => {
-              const color = ColoresEstado[calcularEstado(documento.vencimiento)];
+              const color = coloresEstado(paleta)[calcularEstado(documento.vencimiento)];
 
               return (
                 <View key={documento.id} style={styles.documentoFila}>

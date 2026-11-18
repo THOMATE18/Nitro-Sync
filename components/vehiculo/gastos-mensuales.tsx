@@ -42,7 +42,6 @@ import { useEstilos, useTema } from '@/context/TemaContext';
 import {
   CONCEPTOS_COSTO,
   mesLegible,
-  valorSugerido,
 } from '@/data/costosVehiculo';
 
 import { useAuth } from '@/context/AuthContext';
@@ -57,7 +56,12 @@ import {
 } from '@/services/costosVehiculo';
 
 import { actualizarGasto, crearGasto } from '@/services/gastos';
+import {
+  suscribirConfiguracionCostos,
+  valorSugeridoDesdeConfig,
+} from '@/services/configuracionCostos';
 
+import type { ConfiguracionCosto } from '@/types/negocio';
 import type { Gasto, TipoVehiculo } from '@/types/models';
 
 import { hoyISO } from '@/utils/fechas';
@@ -86,6 +90,9 @@ export default function GastosMensuales({
   );
 
   const [config, setConfig] = useState<ConfigCostos | null>(null);
+  /* F7: precios sugeridos globales (con fallback al valor local). */
+  const [configuraciones, setConfiguraciones] = useState<ConfiguracionCosto[]>([]);
+  const [configGlobalLista, setConfigGlobalLista] = useState(false);
   const [borradores, setBorradores] = useState<Record<string, string>>({});
   const [generando, setGenerando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
@@ -116,6 +123,17 @@ export default function GastosMensuales({
     };
   }, [user, vehiculoId]);
 
+  /* F7: precios sugeridos definidos por la plataforma. */
+  useEffect(() => {
+    return suscribirConfiguracionCostos(
+      (lista) => {
+        setConfiguraciones(lista);
+        setConfigGlobalLista(true);
+      },
+      () => setConfigGlobalLista(true)
+    );
+  }, []);
+
   /* -------------------------------------------------
      GENERAR LOS COSTOS DEL MES (una sola vez por mes)
      ------------------------------------------------- */
@@ -123,7 +141,7 @@ export default function GastosMensuales({
   const generacionRef = useRef(false);
 
   useEffect(() => {
-    if (!user || !vehiculoId || cargando || !config) {
+    if (!user || !vehiculoId || cargando || !config || !configGlobalLista) {
       return;
     }
 
@@ -152,7 +170,7 @@ export default function GastosMensuales({
           for (const concepto of CONCEPTOS_COSTO) {
             const valor =
               config.valores[concepto.clave] ??
-              valorSugerido(concepto, tipo);
+              valorSugeridoDesdeConfig(configuraciones, concepto, tipo);
 
             await crearGasto(user.uid, vehiculoId, {
               fecha: hoy,
@@ -182,7 +200,17 @@ export default function GastosMensuales({
     };
 
     generar();
-  }, [user, vehiculoId, cargando, config, gastos, mesActual, tipo]);
+  }, [
+    user,
+    vehiculoId,
+    cargando,
+    config,
+    gastos,
+    mesActual,
+    tipo,
+    configuraciones,
+    configGlobalLista,
+  ]);
 
   /* -------------------------------------------------
      DATOS DEL MES ACTUAL
@@ -363,7 +391,11 @@ export default function GastosMensuales({
           {CONCEPTOS_COSTO.map((concepto) => {
             const gasto = porClave[concepto.clave];
             const pagado = gasto?.estado === 'pagado';
-            const sugerido = valorSugerido(concepto, tipo);
+            const sugerido = valorSugeridoDesdeConfig(
+              configuraciones,
+              concepto,
+              tipo
+            );
 
             const valor = valorActual(concepto.clave, sugerido);
 

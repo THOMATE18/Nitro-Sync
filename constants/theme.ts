@@ -109,12 +109,12 @@ export const PaletaOscura: TipoPaleta = {
   fondoAlterno: '#10173A',
   tarjeta: '#151B42',
   /* Bordes y separadores con contraste >= 3:1 sobre tarjeta/fondo. */
-  borde: '#5A6BB5',
+  borde: '#6676C4',
 
-  // Texto
-  texto: '#F2F4FF',
-  textoSecundario: '#AEB7DA',
-  textoSuave: '#8B95BD',
+  // Texto (aclarado para superar 4.5:1 sobre fondo y tarjeta)
+  texto: '#F4F6FF',
+  textoSecundario: '#C6CEEE',
+  textoSuave: '#A7B1D9',
 
   // Tinta (se mantiene oscura: texto sobre lima / fondos oscuros)
   tinta: '#0B1030',
@@ -309,37 +309,89 @@ export const FondoWeb = '#DCE2F4';
    vencer, rojo = vencido.
    ------------------------------------------------------- */
 
-export const ColoresEstado = {
-  Vigente: { texto: '#067A55', fondo: '#D7F7E9', borde: '#A9EBD2' },
-  'Proximo a vencer': { texto: '#9A5B00', fondo: '#FEF0C7', borde: '#FADB8A' },
-  Vencido: { texto: '#B3123E', fondo: '#FFE3E3', borde: '#FFC2C2' },
-} as const satisfies Record<
-  EstadoDocumento,
-  { texto: string; fondo: string; borde: string }
->;
+/*
+Colores de estado DERIVADOS de la paleta activa. Se llaman
+dentro de `crearEstilos(Paleta)`, por lo que en modo oscuro
+se usan automáticamente los tonos claros de `PaletaOscura`.
+*/
+export type ColoresPill = { texto: string; fondo: string; borde: string };
+
+export function coloresEstado(Paleta: TipoPaleta): Record<EstadoDocumento, ColoresPill> {
+  return {
+    Vigente: {
+      fondo: Paleta.exitoFondo,
+      borde: Paleta.exito,
+      texto: Paleta.textoExito,
+    },
+    'Proximo a vencer': {
+      fondo: Paleta.advertenciaFondo,
+      borde: Paleta.advertencia,
+      texto: Paleta.textoAdvertencia,
+    },
+    Vencido: {
+      fondo: Paleta.peligroFondo,
+      borde: Paleta.peligro,
+      texto: Paleta.textoPeligro,
+    },
+  };
+}
+
+/** Compatibilidad: mismos tonos que la paleta CLARA. */
+export const ColoresEstado = coloresEstado(Paleta);
 
 /* -------------------------------------------------------
    COLORES POR TIPO DE VEHÍCULO
    ------------------------------------------------------- */
 
-export const ColoresTipo = {
-  Carro: { texto: '#16205C', fondo: '#E4EAFF', borde: '#C3CFFF' },
-  Moto: { texto: '#33520A', fondo: '#EFFFCB', borde: '#D2F57A' },
-} as const;
+export function coloresTipo(Paleta: TipoPaleta): Record<'Carro' | 'Moto', ColoresPill> {
+  return {
+    Carro: {
+      fondo: Paleta.primarioClaro,
+      borde: Paleta.primario,
+      texto: Paleta.primarioOscuro,
+    },
+    Moto: {
+      fondo: Paleta.acentoClaro,
+      borde: Paleta.acentoOscuro,
+      texto: Paleta.textoAcento,
+    },
+  };
+}
+
+/** Compatibilidad: mismos tonos que la paleta CLARA. */
+export const ColoresTipo = coloresTipo(Paleta);
 
 /* -------------------------------------------------------
    COLORES DE ESTADO (recordatorios)
    ------------------------------------------------------- */
 
-export const ColoresRecordatorio = {
-  Pendiente: { texto: '#1B31C9', fondo: '#E4EAFF', borde: '#C3CFFF' },
-  Proximo: { texto: '#9A5B00', fondo: '#FEF0C7', borde: '#FADB8A' },
-  Vencido: { texto: '#B3123E', fondo: '#FFE3E3', borde: '#FFC2C2' },
-  Completado: { texto: '#067A55', fondo: '#D7F7E9', borde: '#A9EBD2' },
-} as const satisfies Record<
-  EstadoRecordatorio,
-  { texto: string; fondo: string; borde: string }
->;
+export function coloresRecordatorio(Paleta: TipoPaleta): Record<EstadoRecordatorio, ColoresPill> {
+  return {
+    Pendiente: {
+      fondo: Paleta.primarioClaro,
+      borde: Paleta.primario,
+      texto: Paleta.primarioOscuro,
+    },
+    Proximo: {
+      fondo: Paleta.advertenciaFondo,
+      borde: Paleta.advertencia,
+      texto: Paleta.textoAdvertencia,
+    },
+    Vencido: {
+      fondo: Paleta.peligroFondo,
+      borde: Paleta.peligro,
+      texto: Paleta.textoPeligro,
+    },
+    Completado: {
+      fondo: Paleta.exitoFondo,
+      borde: Paleta.exito,
+      texto: Paleta.textoExito,
+    },
+  };
+}
+
+/** Compatibilidad: mismos tonos que la paleta CLARA. */
+export const ColoresRecordatorio = coloresRecordatorio(Paleta);
 
 /* =======================================================
    TEMAS DE CLARO/OSCURO (compatibilidad con navegación)

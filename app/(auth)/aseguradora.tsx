@@ -46,6 +46,7 @@ import {
   type TipoPaleta,
 } from '@/constants/theme';
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BotonNitro from '@/components/ui/boton-nitro';
 import CampoContrasena from '@/components/ui/campo-contrasena';
 import { useAlerta } from '@/components/ui/confirm-dialog';
@@ -54,6 +55,7 @@ export default function LoginAseguradoraScreen() {
   const alerta = useAlerta();
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -125,10 +127,13 @@ export default function LoginAseguradoraScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + 48 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <LinearGradient
@@ -163,7 +168,7 @@ export default function LoginAseguradoraScreen() {
             <TextInput
               style={styles.input}
               placeholder="aseguradora@gmail.com"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={paleta.textoSuave}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
@@ -243,7 +248,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   },
   subtitulo: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.92)',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 320,

@@ -37,7 +37,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import BotonNitro from '@/components/ui/boton-nitro';
+import Buscador from '@/components/ui/buscador';
+import ChipsFiltro from '@/components/aseguradora/chips-filtro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
+import { claveAseguradora } from '@/data/aseguradoras';
 import { suscribirVehiculosAseguradora } from '@/services/vehiculosAseguradora';
 import {
   crearOferta,
@@ -50,6 +53,7 @@ import { formatearCop } from '@/services/facturacion';
 import {
   ETIQUETA_ESTADO_OFERTA,
   ETIQUETA_ESTADO_POLIZA,
+  type EstadoOferta,
   type EstadoPoliza,
   type Oferta,
   type Poliza,
@@ -57,6 +61,30 @@ import {
 import type { VehiculoAdmin } from '@/types/models';
 
 type Seccion = 'polizas' | 'ofertas';
+
+type FiltroPolizas = 'todas' | EstadoPoliza;
+type FiltroOfertas = 'todas' | EstadoOferta;
+
+const FILTROS_POLIZAS: { id: FiltroPolizas; etiqueta: string }[] = [
+  { id: 'todas', etiqueta: 'Todas' },
+  { id: 'vigente', etiqueta: 'Vigentes' },
+  { id: 'por_vencer', etiqueta: 'Por vencer' },
+  { id: 'vencida', etiqueta: 'Vencidas' },
+];
+
+const FILTROS_OFERTAS: { id: FiltroOfertas; etiqueta: string }[] = [
+  { id: 'todas', etiqueta: 'Todas' },
+  { id: 'enviada', etiqueta: 'Enviadas' },
+  { id: 'aceptada', etiqueta: 'Aceptadas' },
+  { id: 'rechazada', etiqueta: 'Rechazadas' },
+];
+
+function contarEstados<T extends string>(valores: T[]): Record<string, number> {
+  return valores.reduce<Record<string, number>>((conteo, valor) => {
+    conteo[valor] = (conteo[valor] ?? 0) + 1;
+    return conteo;
+  }, {});
+}
 
 function colorPoliza(Paleta: TipoPaleta, estado: EstadoPoliza) {
   switch (estado) {
@@ -77,12 +105,22 @@ export default function PolizasAseguradora() {
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
 
-  const clave = organizacion?.aseguradoraClave ?? '';
+  /*
+  Clave automática de la aseguradora: sale del documento de la
+  organización y, si viniera vacía, se deriva del nombre.
+  */
+  const clave =
+    organizacion?.aseguradoraClave || claveAseguradora(organizacion?.nombre ?? '');
 
   const [seccion, setSeccion] = useState<Seccion>('polizas');
   const [polizas, setPolizas] = useState<Poliza[]>([]);
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
   const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
+
+  /* Filtros y búsqueda (se combinan). */
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroPolizas, setFiltroPolizas] = useState<FiltroPolizas>('todas');
+  const [filtroOfertas, setFiltroOfertas] = useState<FiltroOfertas>('todas');
 
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -112,13 +150,55 @@ export default function PolizasAseguradora() {
   useEffect(() => {
     if (!clave) return;
 
-    return suscribirVehiculosAseguradora(clave, setVehiculos);
+    return suscribirVehiculosAseguradora(clave, setVehiculos, (error) => {
+      /* El error real de Firestore queda en consola para depurar. */
+      console.error(
+        '[aseguradora] Error al leer los vehículos por aseguradoraClave:',
+        error
+      );
+    });
   }, [clave]);
 
   const vehiculo = useMemo(
     () => vehiculos.find((v) => v.id === vehiculoId) ?? null,
     [vehiculos, vehiculoId]
   );
+
+  const contadoresPolizas = useMemo(
+    () => contarEstados(polizas.map((p) => p.estado)),
+    [polizas]
+  );
+
+  const contadoresOfertas = useMemo(
+    () => contarEstados(ofertas.map((o) => o.estado)),
+    [ofertas]
+  );
+
+  const polizasFiltradas = useMemo(() => {
+    const buscado = busqueda.trim().toLowerCase();
+
+    return polizas.filter((p) => {
+      if (filtroPolizas !== 'todas' && p.estado !== filtroPolizas) return false;
+      if (!buscado) return true;
+
+      return [p.numero, p.placa, p.producto]
+        .filter(Boolean)
+        .some((campo) => String(campo).toLowerCase().includes(buscado));
+    });
+  }, [polizas, filtroPolizas, busqueda]);
+
+  const ofertasFiltradas = useMemo(() => {
+    const buscado = busqueda.trim().toLowerCase();
+
+    return ofertas.filter((o) => {
+      if (filtroOfertas !== 'todas' && o.estado !== filtroOfertas) return false;
+      if (!buscado) return true;
+
+      return [o.titulo, o.descripcion]
+        .filter(Boolean)
+        .some((campo) => String(campo).toLowerCase().includes(buscado));
+    });
+  }, [ofertas, filtroOfertas, busqueda]);
 
   const limpiar = () => {
     setVehiculoId(null);
@@ -282,8 +362,8 @@ export default function PolizasAseguradora() {
 
       {!clave ? (
         <Text style={styles.ayuda}>
-          Tu aseguradora aún no tiene una clave asignada. Pide al super
-          administrador que la configure.
+          No pudimos identificar tu aseguradora. Verifica que el nombre de la
+          organización esté completo o contacta al soporte de Nitro Sync.
         </Text>
       ) : vehiculos.length === 0 ? (
         <Text style={styles.ayuda}>
@@ -430,7 +510,7 @@ export default function PolizasAseguradora() {
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.contenido} keyboardShouldPersistTaps="handled">
         <EncabezadoPanel
@@ -476,6 +556,44 @@ export default function PolizasAseguradora() {
           </Pressable>
         </View>
 
+        <View style={styles.filtros}>
+          <Buscador
+            valor={busqueda}
+            onCambiar={setBusqueda}
+            placeholder={
+              seccion === 'polizas'
+                ? 'Buscar por número, placa o producto'
+                : 'Buscar ofertas'
+            }
+          />
+
+          {seccion === 'polizas' ? (
+            <ChipsFiltro
+              opciones={FILTROS_POLIZAS.map((f) => ({
+                ...f,
+                contador:
+                  f.id === 'todas'
+                    ? polizas.length
+                    : contadoresPolizas[f.id] ?? 0,
+              }))}
+              activo={filtroPolizas}
+              onCambiar={setFiltroPolizas}
+            />
+          ) : (
+            <ChipsFiltro
+              opciones={FILTROS_OFERTAS.map((f) => ({
+                ...f,
+                contador:
+                  f.id === 'todas'
+                    ? ofertas.length
+                    : contadoresOfertas[f.id] ?? 0,
+              }))}
+              activo={filtroOfertas}
+              onCambiar={setFiltroOfertas}
+            />
+          )}
+        </View>
+
         {!mostrarFormulario ? (
           <BotonNitro
             titulo={seccion === 'polizas' ? 'Nueva póliza' : 'Nueva oferta'}
@@ -490,10 +608,14 @@ export default function PolizasAseguradora() {
 
         {seccion === 'polizas' ? (
           <View style={styles.lista}>
-            {polizas.length === 0 ? (
-              <Text style={styles.vacio}>Aún no hay pólizas registradas.</Text>
+            {polizasFiltradas.length === 0 ? (
+              <Text style={styles.vacio}>
+                {polizas.length === 0
+                  ? 'Aún no hay pólizas registradas.'
+                  : 'Sin resultados. Prueba con otro filtro o cambia la búsqueda.'}
+              </Text>
             ) : (
-              polizas.map((p) => (
+              polizasFiltradas.map((p) => (
                 <View key={p.id} style={styles.tarjeta}>
                   <View style={styles.tarjetaCabecera}>
                     <Text style={styles.tarjetaTitulo}>
@@ -527,10 +649,14 @@ export default function PolizasAseguradora() {
           </View>
         ) : (
           <View style={styles.lista}>
-            {ofertas.length === 0 ? (
-              <Text style={styles.vacio}>Aún no hay ofertas enviadas.</Text>
+            {ofertasFiltradas.length === 0 ? (
+              <Text style={styles.vacio}>
+                {ofertas.length === 0
+                  ? 'Aún no hay ofertas enviadas.'
+                  : 'Sin resultados. Prueba con otro filtro o cambia la búsqueda.'}
+              </Text>
             ) : (
-              ofertas.map((o) => (
+              ofertasFiltradas.map((o) => (
                 <View key={o.id} style={styles.tarjeta}>
                   <View style={styles.tarjetaCabecera}>
                     <Text style={styles.tarjetaTitulo}>{o.titulo}</Text>
@@ -584,6 +710,11 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     color: Paleta.texto,
   },
   segmentoTextoActivo: { color: Paleta.acento },
+  filtros: {
+    paddingHorizontal: 16,
+    marginTop: 14,
+    gap: 10,
+  },
   botonNuevo: { marginHorizontal: 16, marginTop: 16 },
   formulario: {
     backgroundColor: Paleta.tarjeta,

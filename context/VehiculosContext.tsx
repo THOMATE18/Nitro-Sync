@@ -30,11 +30,13 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
 import { useAuth } from './AuthContext';
 
+import { completarClavesVehiculos } from '@/services/admin';
 import { crearPerfil } from '@/services/perfil';
 import {
   actualizarVehiculo as actualizarVehiculoFirestore,
@@ -105,6 +107,13 @@ export function VehiculosProvider({
   const [error, setError] = useState<string | null>(null);
 
   /*
+  Autorreparación del propietario: una vez por sesión se
+  completan `aseguradoraClave` y `contactoPropietario` de sus
+  vehículos. Es idempotente y no bloquea la interfaz.
+  */
+  const reparadoRef = useRef<string | null>(null);
+
+  /*
   ======================================================
   SUSCRIPCIÓN EN TIEMPO REAL
   ======================================================
@@ -153,6 +162,44 @@ export function VehiculosProvider({
 
     return limpiar;
   }, [user, cargandoAuth]);
+
+  /*
+  ======================================================
+  AUTORREPARACIÓN DE CLAVES (UNA VEZ POR SESIÓN)
+  ======================================================
+
+  Cuando los vehículos ya están cargados se completa, en
+  segundo plano, la clave de aseguradora y el contacto del
+  propietario que falten. No bloquea la interfaz y no repite
+  el trabajo en cada cambio: la marca `reparadoRef` lo limita
+  a una vez por usuario.
+  ======================================================
+  */
+
+  useEffect(() => {
+    if (cargandoAuth || !user || cargando) {
+      return;
+    }
+
+    if (reparadoRef.current === user.uid) {
+      return;
+    }
+
+    reparadoRef.current = user.uid;
+
+    completarClavesVehiculos(user.uid, vehiculos)
+      .then((actualizados) => {
+        if (actualizados > 0) {
+          console.log(
+            `Claves de seguro puestas al día: ${actualizados} vehículo(s).`
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        const mensaje = err instanceof Error ? err.message : err;
+        console.warn('No se pudieron poner al día las claves de seguro:', mensaje);
+      });
+  }, [user, cargandoAuth, cargando, vehiculos]);
 
   /*
   ======================================================

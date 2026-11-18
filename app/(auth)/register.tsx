@@ -46,6 +46,7 @@ import {
   type TipoPaleta,
 } from '@/constants/theme';
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/AuthContext';
 import { crearPerfil } from '@/services/perfil';
@@ -59,6 +60,7 @@ export default function RegisterScreen() {
   const { refrescarSesion } = useAuth();
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -180,10 +182,13 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + 48 },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true} persistentScrollbar
       >
@@ -238,7 +243,7 @@ export default function RegisterScreen() {
             <TextInput
               style={styles.input}
               placeholder="tucorreo@ejemplo.com"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={paleta.textoSuave}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
@@ -397,7 +402,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
 
   subtitulo: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.92)',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 300,

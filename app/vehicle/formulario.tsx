@@ -13,7 +13,8 @@ Datos guardados en Firestore (subcolección vehiculos):
   nombre, tipo, marca, modelo, year,
   placa, color, kilometraje, imagen,
   fechaRegistro y uid (agrega el contexto).
-  Además: documentoPropietario (solo números) y la
+  Además: documentoPropietario (solo números), el celular
+  del propietario (si su perfil no lo tenía) y la
   autorización de tratamiento de datos del vehículo.
 
 El diseño se organiza en tarjetas con secciones:
@@ -51,7 +52,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 
 import {
-  ColoresTipo,
+  coloresTipo,
   Gradientes,
   Radios,
   Sombras,
@@ -73,9 +74,10 @@ import {
   imagenPorDefecto,
 } from '@/services/imagenVehiculo';
 import { VERSION_AUTORIZACION_DATOS } from '@/services/autorizacionDatos';
-import { suscribirPerfil } from '@/services/perfil';
+import { suscribirPerfil, guardarTelefono } from '@/services/perfil';
 import type { Perfil, TipoVehiculo } from '@/types/models';
 import { formatoKm, formatoPlaca } from '@/utils/formato';
+import { esCelularValido, soloDigitos } from '@/utils/contacto';
 import {
   AYUDA_PLACA,
   EJEMPLO_PLACA,
@@ -201,14 +203,32 @@ export default function FormularioVehiculoScreen() {
   documento del vehículo (`contactoPropietario`) para que
   su aseguradora pueda contactarlo por WhatsApp sin leer
   el perfil (`usuarios/{uid}`). El teléfono viene del
-  perfil; el nombre se puede escribir aquí (opcional).
+  perfil; si el perfil aún no lo tiene, se pide aquí y se
+  guarda en el perfil. El nombre se puede escribir aquí
+  (opcional).
   ======================================================
   */
 
   const [perfil, setPerfil] = useState<Perfil | null>(null);
 
+  /*
+  Marca cuando llegó el primer dato del perfil. Sirve para
+  no pedir el celular mientras el perfil aún está cargando.
+  */
+  const [perfilListo, setPerfilListo] = useState(false);
+
   const [nombrePropietario, setNombrePropietario] = useState(
     vehiculoOriginal?.contactoPropietario?.nombre ?? ''
+  );
+
+  /*
+  Celular del propietario. Solo se pide cuando el perfil NO
+  lo tiene; en ese caso se guarda en el perfil y se copia al
+  vehículo para que la aseguradora pueda escribir por
+  WhatsApp.
+  */
+  const [telefonoPropietario, setTelefonoPropietario] = useState(
+    vehiculoOriginal?.contactoPropietario?.telefono ?? ''
   );
 
   useEffect(() => {
@@ -216,10 +236,19 @@ export default function FormularioVehiculoScreen() {
       return;
     }
 
-    const limpiar = suscribirPerfil(user.uid, setPerfil);
+    const limpiar = suscribirPerfil(user.uid, (datos) => {
+      setPerfil(datos);
+      setPerfilListo(true);
+    });
 
     return limpiar;
   }, [user]);
+
+  /* Celular ya guardado en el perfil (si existe). */
+  const telefonoPerfil = (perfil?.telefono ?? '').trim();
+
+  /* Hay que pedirlo solo cuando el perfil cargó y no lo tiene. */
+  const requiereTelefono = perfilListo && !telefonoPerfil;
 
   /*
   ======================================================
@@ -409,6 +438,16 @@ export default function FormularioVehiculoScreen() {
       return false;
     }
 
+    if (requiereTelefono && !esCelularValido(telefonoPropietario)) {
+      await alerta({
+        titulo: 'Falta tu celular',
+        mensaje:
+          'Escribe tu número de celular (10 dígitos y empieza por 3). Lo usamos para que tu aseguradora pueda escribirte por WhatsApp.',
+        tipo: 'advertencia',
+      });
+      return false;
+    }
+
     if (placa.trim() && !esPlacaValida(placa, tipo)) {
       await alerta({
         titulo: 'Placa incompleta',
@@ -484,7 +523,12 @@ export default function FormularioVehiculoScreen() {
       ''
     ).trim();
 
-    const contactoTelefono = (perfil?.telefono ?? '').trim();
+    /*
+    Teléfono: el del perfil si ya lo tiene; si no, el que se
+    escribió aquí (y que se guardará en el perfil).
+    */
+    const telefonoIngresado = soloDigitos(telefonoPropietario);
+    const contactoTelefono = telefonoPerfil || telefonoIngresado;
 
     const contactoPropietario =
       contactoNombre || contactoTelefono
@@ -536,6 +580,15 @@ export default function FormularioVehiculoScreen() {
     try {
       setGuardando(true);
 
+      /*
+      Si el perfil no tenía celular, se guarda el que se
+      escribió para no volver a pedirlo en el próximo
+      vehículo.
+      */
+      if (user && !telefonoPerfil && telefonoIngresado) {
+        await guardarTelefono(user.uid, telefonoIngresado);
+      }
+
       if (modo === 'editar' && vehiculoId) {
         await actualizar(vehiculoId, datos);
       } else {
@@ -574,7 +627,7 @@ export default function FormularioVehiculoScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.contenedor}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Título dinámico según el modo */}
       <Stack.Screen
@@ -766,6 +819,34 @@ export default function FormularioVehiculoScreen() {
           <Text style={styles.ayudaPlaca}>
             Se comparte con tu aseguradora para contactarte por WhatsApp.
           </Text>
+
+          {requiereTelefono ? (
+            <>
+              <Text style={[styles.etiqueta, styles.filaConMargen]}>
+                Celular del propietario *
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 3001234567"
+                placeholderTextColor={paleta.textoSuave}
+                keyboardType="phone-pad"
+                value={telefonoPropietario}
+                onChangeText={(texto) =>
+                  setTelefonoPropietario(texto.replace(/[^0-9]/g, ''))
+                }
+                maxLength={10}
+              />
+
+              <Text style={styles.ayudaPlaca}>
+                Solo lo usa tu aseguradora para escribirte por WhatsApp.
+              </Text>
+            </>
+          ) : telefonoPerfil ? (
+            <Text style={[styles.ayudaPlaca, styles.filaConMargen]}>
+              Celular registrado: {telefonoPerfil}
+            </Text>
+          ) : null}
 
           <View style={[styles.fila, styles.filaConMargen]}>
             <View style={styles.mitad}>
@@ -992,15 +1073,15 @@ export default function FormularioVehiculoScreen() {
               style={[
                 styles.previewTipo,
                 {
-                  backgroundColor: ColoresTipo[tipo].fondo,
-                  borderColor: ColoresTipo[tipo].borde,
+                  backgroundColor: coloresTipo(paleta)[tipo].fondo,
+                  borderColor: coloresTipo(paleta)[tipo].borde,
                 },
               ]}
             >
               <Text
                 style={[
                   styles.previewTipoTexto,
-                  { color: ColoresTipo[tipo].texto },
+                  { color: coloresTipo(paleta)[tipo].texto },
                 ]}
               >
                 {tipo}
@@ -1118,7 +1199,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
 
   bannerTexto: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.92)',
     marginTop: 6,
     lineHeight: 18,
   },

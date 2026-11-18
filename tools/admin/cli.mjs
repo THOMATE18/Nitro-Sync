@@ -37,6 +37,14 @@ Comandos:
       administrador (por defecto, el uid conocido) y
       quita el gate de cambio de contrasena. Idempotente.
 
+  node tools/admin/cli.mjs sincronizar-aseguradoras [--dry-run]
+      Pone al dia la clave automatica de las organizaciones y
+      de los vehiculos (aseguradoraClave) y copia el contacto
+      del propietario (nombre y telefono) en los vehiculos con
+      seguro. Idempotente y aditivo: solo escribe esos campos.
+      Con --dry-run solo informa (conteos y resumen por
+      aseguradora) y no escribe nada.
+
 Requisitos:
 
   GOOGLE_APPLICATION_CREDENTIALS = ruta al JSON de la service account
@@ -57,7 +65,7 @@ import {
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ASEGURADORAS } from '../../data/aseguradoras.ts';
+import { ASEGURADORAS, claveAseguradora } from '../../data/aseguradoras.ts';
 
 import {
   PROYECTO,
@@ -968,6 +976,149 @@ async function comandoCleanupSeed() {
 }
 
 /* -----------------------------------------------
+   COMANDO: sincronizar-aseguradoras [--dry-run]
+-----------------------------------------------
+
+Pone al dia las claves de aseguradora SIN asignar nada a mano:
+
+  - organizations/{orgId}.aseguradoraClave   (desde el nombre)
+  - usuarios/{uid}/vehiculos/{id}.aseguradoraClave  (desde la aseguradora)
+  - usuarios/{uid}/vehiculos/{id}.contactoPropietario (nombre y telefono)
+
+Es IDEMPOTENTE y ADITIVO: solo escribe los campos que faltan o
+cambian y nunca toca ningun otro dato.
+
+Con --dry-run solo informa (conteos y resumen por aseguradora) y
+NO escribe nada.
+----------------------------------------------- */
+
+function extraerContactoCli(usuario) {
+  const nombre = String(usuario.nombre ?? '').trim();
+  const telefono = String(usuario.telefono ?? '').trim();
+
+  if (!nombre && !telefono) return null;
+
+  return { nombre, telefono };
+}
+
+function contactoIgualCli(actual, nuevo) {
+  return (
+    actual != null &&
+    typeof actual === 'object' &&
+    actual.nombre === nuevo.nombre &&
+    actual.telefono === nuevo.telefono
+  );
+}
+
+async function comandoSincronizarAseguradoras() {
+  const dryRun = process.argv.includes('--dry-run');
+
+  /* 1. Organizaciones. */
+  const organizaciones = await listarDocumentos('organizations');
+  const orgsPendientes = [];
+
+  console.log(`Organizaciones revisadas: ${organizaciones.length}`);
+
+  for (const organizacion of organizaciones) {
+    const clave = claveAseguradora(String(organizacion.nombre ?? ''));
+    const actual = String(organizacion.aseguradoraClave ?? '');
+    const etiqueta = clave === actual ? 'ok' : `-> ${clave || '(sin nombre)'}`;
+
+    console.log(
+      `  ${String(organizacion.nombre ?? organizacion.__id).padEnd(28)} ${etiqueta}`
+    );
+
+    if (clave && clave !== actual) {
+      orgsPendientes.push({ id: organizacion.__id, clave });
+    }
+  }
+
+  /* 2. Vehiculos (por usuario) y resumen por aseguradora. */
+  const usuarios = await listarDocumentos('usuarios');
+  const vehiculosPendientes = [];
+  const resumen = new Map();
+  let revisados = 0;
+  let conSeguro = 0;
+
+  for (const usuario of usuarios) {
+    const contacto = extraerContactoCli(usuario);
+    const vehiculos = await listarDocumentos(
+      `usuarios/${usuario.__id}/vehiculos`
+    );
+
+    for (const vehiculo of vehiculos) {
+      revisados += 1;
+
+      const clave = claveAseguradora(String(vehiculo.aseguradora ?? ''));
+      const actual = String(vehiculo.aseguradoraClave ?? '');
+      const cambios = {};
+
+      if (clave !== actual) cambios.aseguradoraClave = clave;
+
+      if (
+        clave &&
+        contacto &&
+        !contactoIgualCli(vehiculo.contactoPropietario, contacto)
+      ) {
+        cambios.contactoPropietario = contacto;
+      }
+
+      if (clave) {
+        conSeguro += 1;
+        resumen.set(clave, (resumen.get(clave) ?? 0) + 1);
+      }
+
+      if (Object.keys(cambios).length > 0) {
+        vehiculosPendientes.push({
+          ruta: `usuarios/${usuario.__id}/vehiculos/${vehiculo.__id}`,
+          cambios,
+        });
+      }
+    }
+  }
+
+  console.log('');
+  console.log(`Vehiculos revisados: ${revisados}`);
+  console.log(`Con seguro (visibles para su aseguradora): ${conSeguro}`);
+  console.log('Resumen por aseguradora:');
+
+  if (resumen.size === 0) {
+    console.log('  (ninguno)');
+  }
+
+  for (const [clave, total] of [...resumen.entries()].sort()) {
+    console.log(`  ${clave.padEnd(20)} ${total}`);
+  }
+
+  console.log('');
+  console.log(`Organizaciones por actualizar: ${orgsPendientes.length}`);
+  console.log(`Vehiculos por actualizar     : ${vehiculosPendientes.length}`);
+
+  if (dryRun) {
+    console.log('');
+    console.log('SIMULACION (--dry-run): no se escribio nada.');
+    return;
+  }
+
+  let escritos = 0;
+
+  for (const organizacion of orgsPendientes) {
+    await guardarDocumento(`organizations/${organizacion.id}`, {
+      aseguradoraClave: organizacion.clave,
+    });
+    escritos += 1;
+  }
+
+  for (const vehiculo of vehiculosPendientes) {
+    await guardarDocumento(vehiculo.ruta, vehiculo.cambios);
+    escritos += 1;
+  }
+
+  console.log('');
+  console.log(`Documentos actualizados: ${escritos}`);
+}
+
+/* -----------------------------------------------
    ENRUTADOR
 ----------------------------------------------- */
 
@@ -983,11 +1134,12 @@ const comandos = {
   'bootstrap-admin': comandoBootstrapAdmin,
   seed: comandoSeed,
   'cleanup-seed': comandoCleanupSeed,
+  'sincronizar-aseguradoras': comandoSincronizarAseguradoras,
 };
 
 if (!comandos[comando]) {
   console.log(
-    'Comandos: backup | provision | verify | isolation | credentials | deploy-rules | bootstrap-admin | seed | cleanup-seed'
+    'Comandos: backup | provision | verify | isolation | credentials | deploy-rules | bootstrap-admin | seed | cleanup-seed | sincronizar-aseguradoras [--dry-run]'
   );
   process.exit(1);
 }

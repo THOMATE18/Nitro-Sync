@@ -35,11 +35,9 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 
-import { Linking } from 'react-native';
-
 import { db } from '@/firebaseConfig';
 
-import { enlaceWhatsApp } from '@/utils/contacto';
+import { abrirEnlace, enlaceWhatsApp } from '@/utils/contacto';
 
 import {
   idNotificacion,
@@ -67,14 +65,9 @@ export function construirEnlaceWhatsapp(
   return enlaceWhatsApp(numero, mensaje);
 }
 
-/** Abre el enlace en WhatsApp (o el navegador en web). */
+/** Abre el enlace en WhatsApp (app nativa) o en el navegador (web). */
 export async function abrirWhatsapp(enlace: string): Promise<boolean> {
-  try {
-    await Linking.openURL(enlace);
-    return true;
-  } catch {
-    return false;
-  }
+  return abrirEnlace(enlace);
 }
 
 /* -----------------------------------------------

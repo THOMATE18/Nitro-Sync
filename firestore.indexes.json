@@ -1,13 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "vehiculos",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "aseguradoraClave", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "consents",
       "queryScope": "COLLECTION",
       "fields": [
@@ -80,5 +73,16 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "vehiculos",
+      "fieldPath": "aseguradoraClave",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }

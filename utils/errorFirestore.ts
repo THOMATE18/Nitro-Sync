@@ -56,6 +56,21 @@ Así el panel puede mostrar un mensaje distinto y un botón
 =======================================================
 */
 
+/**
+ * true cuando Firestore rechazó la lectura por reglas de seguridad.
+ * Con el bloqueo por membresía activo, una aseguradora INACTIVA
+ * recibe exactamente este código al consultar vehículos o
+ * cotizaciones: es un estado esperado, no una falla de red.
+ */
+export function esPermisoDenegado(
+  error: unknown
+): error is Error & { code: 'permission-denied' } {
+  return (
+    error instanceof Error &&
+    (error as Error & { code?: string }).code === 'permission-denied'
+  );
+}
+
 export type TipoErrorFirestore = 'red' | 'permisos' | 'indice' | 'desconocido';
 
 export interface ErrorFirestoreClasificado {

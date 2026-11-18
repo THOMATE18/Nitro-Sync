@@ -44,7 +44,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 
 import {
-  ColoresEstado,
+  coloresEstado,
   Radios,
   Sombras,
   type TipoPaleta,
@@ -416,7 +416,7 @@ export default function FormularioDocumentoScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.contenedor}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen
         options={{
@@ -555,13 +555,13 @@ export default function FormularioDocumentoScreen() {
             <View
               style={[
                 styles.previewEstado,
-                { backgroundColor: ColoresEstado[estadoPrevio].fondo },
+                { backgroundColor: coloresEstado(paleta)[estadoPrevio].fondo },
               ]}
             >
               <Text
                 style={[
                   styles.previewEstadoTitulo,
-                  { color: ColoresEstado[estadoPrevio].texto },
+                  { color: coloresEstado(paleta)[estadoPrevio].texto },
                 ]}
               >
                 {estadoPrevio}
@@ -570,7 +570,7 @@ export default function FormularioDocumentoScreen() {
               <Text
                 style={[
                   styles.previewEstadoTexto,
-                  { color: ColoresEstado[estadoPrevio].texto },
+                  { color: coloresEstado(paleta)[estadoPrevio].texto },
                 ]}
               >
                 {textoDiasVencimiento(diasPrevios)} · vence el{' '}

@@ -39,7 +39,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
-import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
+import { useAlerta } from '@/components/ui/confirm-dialog';
+import TarjetaRacha from '@/components/ui/tarjeta-racha';
 
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
@@ -47,13 +48,24 @@ import { useVehiculos } from '@/context/VehiculosContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
 
-import { verificarAvisoAceite } from '@/services/notificationService';
-
+import {
+  sincronizarRecordatorioRacha,
+  verificarAvisoAceite,
+} from '@/services/notificationService';
 import type { Mantenimiento } from '@/types/models';
+
+import { hoyISO } from '@/utils/fechas';
 
 import { calcularEstadoAceite } from '@/utils/mantenimiento';
 
 import { formatoKm } from '@/utils/formato';
+
+import {
+  calcularRacha,
+  leerRacha,
+  textoRacha,
+  type ResultadoRacha,
+} from '@/utils/racha';
 
 /* Kilómetros que se pueden sumar con un toque. */
 const SUMAS_RAPIDAS = [10, 50, 100, 500];
@@ -75,7 +87,6 @@ export default function ActualizarKilometrajeScreen() {
   const { obtenerVehiculo, actualizar } = useVehiculos();
 
   const alerta = useAlerta();
-  const confirmar = useConfirm();
 
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
@@ -91,6 +102,15 @@ export default function ActualizarKilometrajeScreen() {
 
   const [kilometraje, setKilometraje] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  /*
+  Resultado de la última actualización: sirve para saber si
+  la racha subió y animar la celebración sin recargar la
+  pantalla.
+  */
+  const [resultado, setResultado] = useState<ResultadoRacha | null>(null);
+
+  const hoy = hoyISO();
 
   /* Se prellena una sola vez con el kilometraje actual. */
   const prellenado = useRef(false);
@@ -151,11 +171,25 @@ export default function ActualizarKilometrajeScreen() {
   }
 
   /* -------------------------------------------------
+     RACHA DE KILOMETRAJE
+     ------------------------------------------------- */
+
+  /* Estado guardado en el vehículo (con valores seguros). */
+  const racha = leerRacha(vehiculo);
+
+  /* La racha acaba de subir y todavía no se ha visto: se anima. */
+  const rachaSubio = !!resultado && resultado.subio && !resultado.yaContabaHoy;
+
+  /* -------------------------------------------------
      ACCIONES
      ------------------------------------------------- */
 
   const sumar = (km: number) => {
     setKilometraje(String(valorActual + km));
+  };
+
+  const volver = () => {
+    if (router.canGoBack()) router.back();
   };
 
   const guardar = async () => {
@@ -172,25 +206,38 @@ export default function ActualizarKilometrajeScreen() {
     }
 
     if (valor < (vehiculo.kilometraje || 0)) {
-      const confirmado = await confirmar({
+      await alerta({
         titulo: 'Kilometraje menor',
         mensaje: `El kilometraje guardado es ${formatoKm(
           vehiculo.kilometraje || 0
         )} y escribiste ${formatoKm(
           valor
-        )}.\n\n¿Seguro que quieres reducirlo?`,
-        textoConfirmar: 'Sí, actualizar',
-        textoCancelar: 'Cancelar',
+        )}.\n\nEl kilometraje no puede bajar. Corrige el valor para poder guardar.`,
+        tipo: 'error',
         icono: 'speedometer-outline',
       });
 
-      if (!confirmado) return;
+      return;
     }
 
     try {
       setGuardando(true);
 
-      await actualizar(vehiculo.id, { kilometraje: valor });
+      /* Racha: cuenta el día de hoy para este vehículo. */
+      const nuevaRacha = calcularRacha(racha, {
+        fecha: hoy,
+        kilometraje: valor,
+      });
+
+      await actualizar(vehiculo.id, {
+        kilometraje: valor,
+        rachaActual: nuevaRacha.rachaActual,
+        mejorRacha: nuevaRacha.mejorRacha,
+        ultimaRachaFecha: nuevaRacha.ultimaRachaFecha,
+        ultimaActualizacionKm: nuevaRacha.ultimaActualizacionKm,
+      });
+
+      setResultado(nuevaRacha);
 
       const estado = calcularEstadoAceite({
         tipo: vehiculo.tipo,
@@ -208,18 +255,40 @@ export default function ActualizarKilometrajeScreen() {
           kilometraje: valor,
           mantenimientos,
         });
+
+        /* Asegura el recordatorio diario de la racha. */
+        sincronizarRecordatorioRacha(user.uid);
       }
+
+      /* Mensaje de la racha según lo que acaba de pasar. */
+      const mensajeRacha =
+        nuevaRacha.subio && !nuevaRacha.yaContabaHoy
+          ? `\n\n🔥 ¡Racha de ${textoRacha(nuevaRacha.rachaActual)}!`
+          : nuevaRacha.yaContabaHoy
+            ? `\n\n🔥 Racha de ${textoRacha(
+                nuevaRacha.rachaActual
+              )} (ya contaba hoy).`
+            : '';
 
       await alerta({
         titulo: 'Kilometraje actualizado',
         mensaje: `${vehiculo.nombre} ahora marca ${formatoKm(
           valor
-        )}.\n\n${estado.resumen}`,
+        )}.\n\n${estado.resumen}${mensajeRacha}`,
         tipo: 'exito',
         icono: 'checkmark-circle-outline',
       });
 
-      if (router.canGoBack()) router.back();
+      /*
+      Si la racha subió, se deja al usuario en la pantalla para
+      que vea la animación de la tarjeta (el botón pasa a
+      "Volver"). En los demás casos se regresa como siempre.
+      */
+      if (nuevaRacha.subio && !nuevaRacha.yaContabaHoy) {
+        return;
+      }
+
+      volver();
     } catch (error: any) {
       await alerta({
         titulo: 'No se pudo actualizar',
@@ -239,7 +308,7 @@ export default function ActualizarKilometrajeScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scroll}>
         <LinearGradient colors={Gradientes.marca} style={styles.hero}>
@@ -305,6 +374,18 @@ export default function ActualizarKilometrajeScreen() {
           </View>
         </View>
 
+        {/* ------------------ RACHA DE KILOMETRAJE ------------------ */}
+
+        <View style={styles.rachaContenedor}>
+          <TarjetaRacha
+            rachaActual={racha.rachaActual}
+            mejorRacha={racha.mejorRacha}
+            ultimaRachaFecha={racha.ultimaRachaFecha}
+            hoy={hoy}
+            celebrar={rachaSubio}
+          />
+        </View>
+
         {/* ------------------ CAMBIO DE ACEITE ------------------ */}
 
         {estadoAceite && (
@@ -351,24 +432,46 @@ export default function ActualizarKilometrajeScreen() {
                 {'  ·  '}Próximo: {formatoKm(estadoAceite.proximoCambio)}
               </Text>
             )}
+
+            {estadoAceite.tieneRegistro &&
+              (estadoAceite.tipoAceite ||
+                estadoAceite.intervaloPersonalizado) && (
+                <Text style={styles.aceiteMeta}>
+                  {[
+                    estadoAceite.tipoAceite
+                      ? `Aceite ${estadoAceite.tipoAceite.toLowerCase()}`
+                      : null,
+                    `Cada ${formatoKm(estadoAceite.intervalo)}${
+                      estadoAceite.intervaloPersonalizado
+                        ? ' (personalizado)'
+                        : ''
+                    }`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              )}
           </View>
         )}
 
         {/* ------------------ GUARDAR ------------------ */}
 
         <BotonNitro
-          titulo="Guardar kilometraje"
-          icono="checkmark-circle"
+          titulo={rachaSubio ? 'Volver al vehículo' : 'Guardar kilometraje'}
+          icono={rachaSubio ? 'arrow-back' : 'checkmark-circle'}
           cargando={guardando}
           anchoCompleto
-          onPress={guardar}
-          accessibilityLabel="Guardar kilometraje"
+          onPress={rachaSubio ? volver : guardar}
+          accessibilityLabel={
+            rachaSubio ? 'Volver al vehículo' : 'Guardar kilometraje'
+          }
           style={styles.botonGuardar}
         />
 
         <Text style={styles.nota}>
-          🔔 Si el kilometraje está cerca del próximo cambio de aceite, recibirás
-          la notificación con sonido y vibración (actívalas en Ajustes).
+          🔥 Mantén la racha actualizando el kilometraje cada día. 🔔 Si el
+          kilometraje está cerca del próximo cambio de aceite, recibirás la
+          notificación con sonido y vibración (actívalas en Ajustes).
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -448,6 +551,8 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     paddingVertical: 8,
   },
   chipTexto: { fontSize: 13, fontWeight: '800', color: Paleta.primarioOscuro },
+
+  rachaContenedor: { marginHorizontal: 16, marginTop: 16 },
 
   aceiteHeader: { flexDirection: 'row', alignItems: 'center' },
   aceiteIcono: {

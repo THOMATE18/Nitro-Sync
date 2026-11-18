@@ -39,6 +39,13 @@ export interface Aseguradora {
    * comercial cambie, la clave no.
    */
   clave: string;
+  /**
+   * Nombres alternativos con los que la gente escribe la
+   * aseguradora ("SURA", "Suramericana", "Colpatria"...).
+   * `claveAseguradora` los usa para reconocer el catálogo sin
+   * obligar a nadie a asignar la clave a mano.
+   */
+  alias?: string[];
   nombre: string;
   telefono: string;
   telefonoGratuito?: string;
@@ -54,6 +61,13 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'sura',
     clave: 'sura',
+    alias: [
+      'SURA',
+      'Seguros SURA',
+      'SURA Seguros',
+      'Suramericana',
+      'Seguros Suramericana',
+    ],
     nombre: 'SURA',
     telefono: '+576014378888',
     telefonoGratuito: '018000518888',
@@ -67,6 +81,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'bolivar',
     clave: 'seguros_bolivar',
+    alias: ['Seguros Bolívar', 'Bolívar', 'Bolivar', 'Seguros Bolivar'],
     nombre: 'Seguros Bolívar',
     telefono: '+576013122122',
     telefonoGratuito: '018000123322',
@@ -79,6 +94,13 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'axa',
     clave: 'axa_colpatria',
+    alias: [
+      'AXA Colpatria',
+      'Colpatria',
+      'AXA',
+      'AXA Colpatria Seguros',
+      'Seguros Colpatria',
+    ],
     nombre: 'AXA Colpatria',
     telefono: '+576014235757',
     telefonoGratuito: '018000512620',
@@ -91,6 +113,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'mapfre',
     clave: 'mapfre',
+    alias: ['MAPFRE', 'Mapfre Seguros', 'Mapfre Colombia'],
     nombre: 'MAPFRE',
     telefono: '+576013077024',
     telefonoGratuito: '018000519991',
@@ -104,6 +127,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'allianz',
     clave: 'allianz',
+    alias: ['Allianz', 'Allianz Seguros', 'Allianz Colombia'],
     nombre: 'Allianz',
     telefono: '+576015941133',
     telefonoGratuito: '018000513500',
@@ -116,6 +140,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'liberty',
     clave: 'liberty',
+    alias: ['Liberty', 'Liberty Seguros', 'Liberty Colombia', 'Liberty Seguros Colombia'],
     nombre: 'Liberty Seguros',
     telefono: '+576019181600',
     whatsapp: '+573164821802',
@@ -127,6 +152,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'sbs',
     clave: 'sbs',
+    alias: ['SBS', 'SBS Seguros', 'SBS Seguros Colombia'],
     nombre: 'SBS Seguros',
     telefono: '+576013138700',
     telefonoGratuito: '018000911360',
@@ -139,6 +165,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'estado',
     clave: 'seguros_del_estado',
+    alias: ['Seguros del Estado', 'Seguros Estado', 'Del Estado'],
     nombre: 'Seguros del Estado',
     telefono: '+576017443900',
     telefonoGratuito: '018000123010',
@@ -151,6 +178,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'hdi',
     clave: 'hdi',
+    alias: ['HDI', 'HDI Seguros', 'HDI Colombia'],
     nombre: 'HDI Seguros',
     telefono: '+576013077050',
     telefonoGratuito: '018000113390',
@@ -164,6 +192,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'equidad',
     clave: 'la_equidad',
+    alias: ['La Equidad', 'Equidad', 'La Equidad Seguros'],
     nombre: 'La Equidad Seguros',
     telefono: '+576019172127',
     telefonoGratuito: '018000919538',
@@ -177,6 +206,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'positiva',
     clave: 'positiva',
+    alias: ['Positiva', 'Positiva Seguros', 'Positiva Compañía de Seguros'],
     nombre: 'Positiva',
     telefono: '+576013307000',
     telefonoGratuito: '018000111170',
@@ -187,7 +217,13 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
 ];
 
-/** Busca una aseguradora por nombre, id o clave (tolerante a mayúsculas). */
+/**
+ * Busca una aseguradora por nombre, id, clave o alias.
+ *
+ * La comparación normaliza el texto (minúsculas, sin tildes
+ * ni signos), así que "Seguros Bolivar", "Bolívar" o
+ * "SEGUROS BOLÍVAR" encuentran la misma aseguradora.
+ */
 export function buscarAseguradora(
   nombre: string | null | undefined
 ): Aseguradora | undefined {
@@ -195,13 +231,20 @@ export function buscarAseguradora(
     return undefined;
   }
 
-  const buscado = nombre.trim().toLowerCase();
+  const buscado = normalizarClave(nombre);
+
+  if (!buscado) {
+    return undefined;
+  }
 
   return ASEGURADORAS.find(
     (aseguradora) =>
-      aseguradora.id === buscado ||
-      aseguradora.clave === buscado ||
-      aseguradora.nombre.toLowerCase() === buscado
+      normalizarClave(aseguradora.id) === buscado ||
+      normalizarClave(aseguradora.clave) === buscado ||
+      normalizarClave(aseguradora.nombre) === buscado ||
+      (aseguradora.alias ?? []).some(
+        (alias) => normalizarClave(alias) === buscado
+      )
   );
 }
 

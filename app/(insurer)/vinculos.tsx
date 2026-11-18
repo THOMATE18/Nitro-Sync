@@ -30,17 +30,21 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 
 import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
+import Buscador from '@/components/ui/buscador';
+import ChipsFiltro from '@/components/aseguradora/chips-filtro';
 import TarjetaVehiculoAseguradora from '@/components/aseguradora/tarjeta-vehiculo';
+import ModalRenovar from '@/components/aseguradora/modal-renovar';
+import { claveAseguradora } from '@/data/aseguradoras';
 import { registrarAuditoria } from '@/services/auditoria';
 import { suscribirVehiculosAseguradora } from '@/services/vehiculosAseguradora';
 import {
   FILTROS_VEHICULOS_ASEGURADORA,
+  contarVehiculosAseguradora,
   filtrarVehiculosAseguradora,
   resumirVehiculosAseguradora,
   type FiltroVehiculosAseguradora,
@@ -57,10 +61,19 @@ export default function VehiculosAseguradora() {
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
 
-  const clave = organizacion?.aseguradoraClave ?? '';
+  /*
+  Clave automática de la aseguradora: sale del documento de la
+  organización y, si viniera vacía, se deriva del nombre.
+  */
+  const clave =
+    organizacion?.aseguradoraClave || claveAseguradora(organizacion?.nombre ?? '');
 
   const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
   const [filtro, setFiltro] = useState<FiltroVehiculosAseguradora>('todos');
+  const [busqueda, setBusqueda] = useState('');
+
+  /* Vehículo cuya renovación está abierta en el modal. */
+  const [paraRenovar, setParaRenovar] = useState<VehiculoAdmin | null>(null);
 
   const [estadoCarga, setEstadoCarga] = useState<'cargando' | 'listo' | 'error'>(
     'cargando'
@@ -80,6 +93,11 @@ export default function VehiculosAseguradora() {
         setErrorCarga(null);
       },
       (error) => {
+        /* El error real de Firestore queda en consola para depurar. */
+        console.error(
+          '[aseguradora] Error al leer los vehículos por aseguradoraClave:',
+          error
+        );
         setEstadoCarga('error');
         setErrorCarga(clasificarErrorFirestore(error));
       }
@@ -97,9 +115,14 @@ export default function VehiculosAseguradora() {
     [vehiculos]
   );
 
+  const contadores = useMemo(
+    () => contarVehiculosAseguradora(vehiculos),
+    [vehiculos]
+  );
+
   const lista = useMemo(
-    () => filtrarVehiculosAseguradora(vehiculos, filtro),
-    [vehiculos, filtro]
+    () => filtrarVehiculosAseguradora(vehiculos, filtro, busqueda),
+    [vehiculos, filtro, busqueda]
   );
 
   const auditar = useCallback(
@@ -120,36 +143,37 @@ export default function VehiculosAseguradora() {
     [user, orgId]
   );
 
+  const cargandoOrg = !!orgId && !organizacion;
   const sinOrganizacion = !orgId;
-  const sinClave = !!orgId && !clave;
+  const sinClave = !!organizacion && !clave;
 
   const errorMostrar: ErrorFirestoreClasificado | null = sinOrganizacion
     ? {
         tipo: 'permisos',
         titulo: 'Cuenta sin organización',
         mensaje:
-          'Tu cuenta no tiene una aseguradora asignada. Pide al administrador que la configure.',
+          'Tu cuenta no tiene una aseguradora asignada. Vuelve a iniciar sesión; si continúa, contacta al soporte de Nitro Sync.',
       }
     : sinClave
       ? {
           tipo: 'permisos',
-          titulo: 'Aseguradora sin clave',
+          titulo: 'Aseguradora sin identificar',
           mensaje:
-            'Tu aseguradora todavía no tiene una clave asignada. Pide al super administrador que la configure.',
+            'No pudimos identificar tu aseguradora. Verifica que el nombre de la organización esté completo o contacta al soporte de Nitro Sync.',
         }
       : errorCarga;
 
   const mostrarError = sinOrganizacion || sinClave || estadoCarga === 'error';
+  const mostrarCargando =
+    !mostrarError && (cargandoOrg || (estadoCarga === 'cargando' && vehiculos.length === 0));
 
   const renderTarjeta = ({ item }: { item: VehiculoAdmin }) => (
     <TarjetaVehiculoAseguradora
       vehiculo={item}
       onContactar={(v) => auditar('vehiculo.contactar', v)}
+      onLlamar={(v) => auditar('vehiculo.llamar', v)}
       onAbrir={(v) => auditar('vehiculo.abrir', v)}
-      onRenovar={(v) => {
-        auditar('vehiculo.renovar', v);
-        router.push('/(insurer)/polizas');
-      }}
+      onRenovar={(v) => setParaRenovar(v)}
     />
   );
 
@@ -163,22 +187,20 @@ export default function VehiculosAseguradora() {
       />
 
       <View style={styles.filtros}>
-        {FILTROS_VEHICULOS_ASEGURADORA.map((f) => (
-          <Pressable
-            key={f.id}
-            style={[styles.chip, filtro === f.id && styles.chipActivo]}
-            onPress={() => setFiltro(f.id)}
-          >
-            <Text
-              style={[
-                styles.chipTexto,
-                filtro === f.id && styles.chipTextoActivo,
-              ]}
-            >
-              {f.etiqueta}
-            </Text>
-          </Pressable>
-        ))}
+        <Buscador
+          valor={busqueda}
+          onCambiar={setBusqueda}
+          placeholder="Buscar por placa, marca o póliza"
+        />
+
+        <ChipsFiltro
+          opciones={FILTROS_VEHICULOS_ASEGURADORA.map((f) => ({
+            ...f,
+            contador: contadores[f.id],
+          }))}
+          activo={filtro}
+          onCambiar={setFiltro}
+        />
       </View>
 
       <View style={styles.metricas}>
@@ -231,7 +253,7 @@ export default function VehiculosAseguradora() {
             </Pressable>
           ) : null}
         </View>
-      ) : estadoCarga === 'cargando' && vehiculos.length === 0 ? (
+      ) : mostrarCargando ? (
         <View style={styles.estadoCentro}>
           <ActivityIndicator size="large" color={paleta.primario} />
           <Text style={styles.estadoCargaTexto}>Cargando vehículos…</Text>
@@ -262,6 +284,12 @@ export default function VehiculosAseguradora() {
           }
         />
       )}
+
+      <ModalRenovar
+        visible={!!paraRenovar}
+        vehiculo={paraRenovar}
+        onCerrar={() => setParaRenovar(null)}
+      />
     </View>
   );
 }
@@ -270,27 +298,10 @@ const crearEstilos = (Paleta: TipoPaleta) =>
   StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: Paleta.fondo },
     filtros: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
       paddingHorizontal: 16,
       marginTop: -24,
+      gap: 10,
     },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: Radios.pastilla,
-      borderWidth: 1.5,
-      borderColor: Paleta.borde,
-      backgroundColor: Paleta.tarjeta,
-    },
-    chipActivo: { backgroundColor: Paleta.tinta, borderColor: Paleta.bordeDuro },
-    chipTexto: {
-      fontSize: 12,
-      fontWeight: '800',
-      color: Paleta.textoSecundario,
-    },
-    chipTextoActivo: { color: Paleta.acento },
     metricas: {
       flexDirection: 'row',
       gap: 8,

@@ -50,6 +50,7 @@ import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
+import { claveAseguradora } from '@/data/aseguradoras';
 import { suscribirVehiculosAseguradora } from '@/services/vehiculosAseguradora';
 import { suscribirConsentimientosOrg } from '@/services/consentimientos';
 import {
@@ -118,7 +119,12 @@ export default function AvisosAseguradora() {
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
 
-  const clave = organizacion?.aseguradoraClave ?? '';
+  /*
+  Clave automática de la aseguradora: sale del documento de la
+  organización y, si viniera vacía, se deriva del nombre.
+  */
+  const clave =
+    organizacion?.aseguradoraClave || claveAseguradora(organizacion?.nombre ?? '');
 
   const [avisos, setAvisos] = useState<RegistroNotificacion[]>([]);
   const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
@@ -148,7 +154,13 @@ export default function AvisosAseguradora() {
   useEffect(() => {
     if (!clave) return;
 
-    return suscribirVehiculosAseguradora(clave, setVehiculos);
+    return suscribirVehiculosAseguradora(clave, setVehiculos, (error) => {
+      /* El error real de Firestore queda en consola para depurar. */
+      console.error(
+        '[aseguradora] Error al leer los vehículos por aseguradoraClave:',
+        error
+      );
+    });
   }, [clave]);
 
   /* Vehículos con consentimiento comercial vigente. */
@@ -370,7 +382,7 @@ export default function AvisosAseguradora() {
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.contenido} keyboardShouldPersistTaps="handled">
         <EncabezadoPanel
@@ -395,8 +407,8 @@ export default function AvisosAseguradora() {
             <Text style={styles.etiqueta}>Vehículo con tu seguro</Text>
             {!clave ? (
               <Text style={styles.ayuda}>
-                Tu aseguradora aún no tiene una clave asignada. Pide al super
-                administrador que la configure.
+                No pudimos identificar tu aseguradora. Verifica que el nombre de
+                la organización esté completo o contacta al soporte de Nitro Sync.
               </Text>
             ) : vehiculos.length === 0 ? (
               <Text style={styles.ayuda}>

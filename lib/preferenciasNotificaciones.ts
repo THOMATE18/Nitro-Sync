@@ -31,6 +31,12 @@ export interface PreferenciasNotificacion {
   seguro: boolean;
   mantenimientos: boolean;
   recordatorios: boolean;
+  /** Recordatorio diario para no perder la racha de kilometraje. */
+  racha: boolean;
+  /** Hora del recordatorio de racha (0-23). */
+  horaRacha: number;
+  /** Minuto del recordatorio de racha (0-59). */
+  minutoRacha: number;
 }
 
 export const PREFERENCIAS_POR_DEFECTO: PreferenciasNotificacion = {
@@ -40,6 +46,10 @@ export const PREFERENCIAS_POR_DEFECTO: PreferenciasNotificacion = {
   seguro: true,
   mantenimientos: true,
   recordatorios: true,
+  racha: true,
+  /* Por defecto, 7:00 p.m. */
+  horaRacha: 19,
+  minutoRacha: 0,
 };
 
 const CLAVE_PREFERENCIAS = '@servicio_vehicular/preferencias_notificaciones';

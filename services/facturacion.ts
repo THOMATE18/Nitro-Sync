@@ -124,6 +124,14 @@ function convertirSuscripcion(id: string, datos: DocumentData): Suscripcion {
     vencimiento: datos.vencimiento ?? null,
     precioCop: datos.precioCop ?? null,
     actualizadaEn: Number(datos.actualizadaEn ?? 0),
+    simulado: datos.simulado === true ? true : undefined,
+    /* Trazabilidad: se expone para el detalle del súper administrador. */
+    activadaPor: datos.activadaPor ?? null,
+    activadaEn: datos.activadaEn == null ? null : Number(datos.activadaEn),
+    desactivadaPor: datos.desactivadaPor ?? null,
+    desactivadaEn: datos.desactivadaEn == null ? null : Number(datos.desactivadaEn),
+    motivoDesactivacion: datos.motivoDesactivacion ?? null,
+    renovadaEn: datos.renovadaEn == null ? null : Number(datos.renovadaEn),
   };
 }
 
@@ -184,6 +192,59 @@ export async function guardarSuscripcion(
   );
 }
 
+/*
+-------------------------------------------------------
+FASE 7 · MEMBRESÍA SIMULADA
+-------------------------------------------------------
+*/
+
+/** Activa o suspende la membresía sin tocar el plan asignado. */
+export async function cambiarMembresia(
+  orgId: string,
+  habilitada: boolean
+): Promise<void> {
+  await guardarSuscripcion(orgId, {
+    estado: habilitada ? 'active' : 'suspended',
+  });
+}
+
+/**
+ * Renueva 30 días la suscripción. SIMULADO: no se cobra
+ * nada; solo se desplaza la vigencia y se marca el origen.
+ */
+export async function renovarSuscripcion30Dias(
+  orgId: string,
+  datos: {
+    planId: string | null;
+    precioCop: number | null;
+    estado?: EstadoSuscripcion;
+  }
+): Promise<string> {
+  const hoy = new Date();
+  const fin = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  await guardarSuscripcion(orgId, {
+    planId: datos.planId,
+    precioCop: datos.precioCop,
+    estado: datos.estado ?? 'active',
+    inicio: hoy.toISOString().slice(0, 10),
+    vencimiento: fin.toISOString().slice(0, 10),
+  });
+
+  await setDoc(
+    suscripcionRef(orgId),
+    { simulado: true, actualizadaEn: Date.now() },
+    { merge: true }
+  );
+
+  return fin.toISOString().slice(0, 10);
+}
+
+/** OrgIds con suscripción registrada pero sin plan asignado. */
+export function orgsSinPlan(suscripciones: Suscripcion[]): string[] {
+  return suscripciones.filter((s) => !s.planId).map((s) => s.orgId);
+}
+
 /* -----------------------------------------------
    PAGOS
 ----------------------------------------------- */
@@ -201,6 +262,7 @@ function convertirPago(id: string, datos: DocumentData): Pago {
     registradoPor: String(datos.registradoPor ?? ''),
     registradoEn: Number(datos.registradoEn ?? 0),
     pagadoEn: datos.pagadoEn ?? null,
+    simulado: datos.simulado === true ? true : undefined,
   };
 }
 
@@ -263,6 +325,8 @@ export async function registrarPago(datos: {
     registradoPor: datos.registradoPor,
     registradoEn: marca,
     pagadoEn: datos.pagado ? new Date().toISOString() : null,
+    /* F7: ningún pago se cobra de verdad. */
+    simulado: true,
   });
 
   return referencia.id;

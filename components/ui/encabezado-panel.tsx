@@ -84,7 +84,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     letterSpacing: 2.5,
   },
   titulo: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', marginTop: 4 },
-  subtitulo: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 2 },
+  subtitulo: { color: 'rgba(255,255,255,0.92)', fontSize: 13, marginTop: 2 },
   iconoCaja: {
     width: 52,
     height: 52,

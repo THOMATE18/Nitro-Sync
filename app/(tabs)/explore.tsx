@@ -35,7 +35,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
 import {
-  ColoresTipo,
+  coloresTipo,
   Gradientes,
   Radios,
   sombraDura,
@@ -221,15 +221,15 @@ export default function ExploreScreen() {
                     style={[
                       styles.typeBadge,
                       {
-                        backgroundColor: ColoresTipo[vehiculo.tipo].fondo,
-                        borderColor: ColoresTipo[vehiculo.tipo].borde,
+                        backgroundColor: coloresTipo(paleta)[vehiculo.tipo].fondo,
+                        borderColor: coloresTipo(paleta)[vehiculo.tipo].borde,
                       },
                     ]}
                   >
                     <Text
                       style={[
                         styles.typeBadgeText,
-                        { color: ColoresTipo[vehiculo.tipo].texto },
+                        { color: coloresTipo(paleta)[vehiculo.tipo].texto },
                       ]}
                     >
                       {vehiculo.tipo}
@@ -366,7 +366,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
 
   subtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.92)',
     marginTop: 8,
   },
 

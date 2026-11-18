@@ -21,7 +21,11 @@ No se inventan datos: si el vehículo no tiene ningún
 =======================================================
 */
 
-import type { Mantenimiento, TipoVehiculo } from '@/types/models';
+import type {
+  Mantenimiento,
+  TipoAceite,
+  TipoVehiculo,
+} from '@/types/models';
 
 /** Intervalo de cambio de aceite en kilómetros. */
 export const INTERVALO_ACEITE: Record<TipoVehiculo, number> = {
@@ -32,8 +36,33 @@ export const INTERVALO_ACEITE: Record<TipoVehiculo, number> = {
 /** Se considera "próximo" cuando faltan estos km o menos. */
 export const UMBRAL_AVISO_ACEITE = 500;
 
+/** Clases de aceite que el usuario puede elegir al registrar. */
+export const TIPOS_ACEITE: TipoAceite[] = [
+  'Mineral',
+  'Semisintético',
+  'Sintético',
+];
+
 export function intervaloAceite(tipo: TipoVehiculo): number {
   return INTERVALO_ACEITE[tipo] ?? INTERVALO_ACEITE.Carro;
+}
+
+/*
+Intervalo que se aplica de verdad a un cambio de aceite:
+si el registro trae un intervalo personalizado válido se
+usa ese; si no, el intervalo por defecto del vehículo.
+*/
+export function intervaloEfectivo(
+  tipo: TipoVehiculo,
+  cambio?: Mantenimiento,
+): number {
+  const personalizado = cambio?.intervaloAceite ?? 0;
+
+  if (Number.isFinite(personalizado) && personalizado > 0) {
+    return personalizado;
+  }
+
+  return intervaloAceite(tipo);
 }
 
 export type EstadoNivelAceite = 'Sin registro' | 'Al día' | 'Próximo' | 'Vencido';
@@ -45,6 +74,10 @@ export interface EstadoAceite {
   kilometrajeCambio: number;
   /** Fecha del último cambio ("" si no hay). */
   fechaCambio: string;
+  /** Clase de aceite del último cambio ('' si no se indicó). */
+  tipoAceite: TipoAceite | '';
+  /** El último cambio usó un intervalo personalizado. */
+  intervaloPersonalizado: boolean;
   intervalo: number;
   /** Kilometraje al que tocará el próximo cambio (0 si no hay). */
   proximoCambio: number;
@@ -91,18 +124,22 @@ export function calcularEstadoAceite(opciones: {
 }): EstadoAceite {
   const { tipo, kilometraje, mantenimientos } = opciones;
 
-  const intervalo = intervaloAceite(tipo);
+  const intervaloPorDefecto = intervaloAceite(tipo);
   const ultimo = ultimoCambioAceite(mantenimientos);
+  const intervalo = intervaloEfectivo(tipo, ultimo);
+  const intervaloPersonalizado = intervalo !== intervaloPorDefecto;
 
   if (!ultimo) {
     return {
       tieneRegistro: false,
       kilometrajeCambio: 0,
       fechaCambio: '',
-      intervalo,
+      tipoAceite: '',
+      intervaloPersonalizado: false,
+      intervalo: intervaloPorDefecto,
       proximoCambio: 0,
       kmRecorridos: 0,
-      kmRestantes: intervalo,
+      kmRestantes: intervaloPorDefecto,
       porcentaje: 0,
       estado: 'Sin registro',
       resumen:
@@ -137,6 +174,8 @@ export function calcularEstadoAceite(opciones: {
     tieneRegistro: true,
     kilometrajeCambio: ultimo.kilometraje,
     fechaCambio: ultimo.fecha,
+    tipoAceite: ultimo.tipoAceite ?? '',
+    intervaloPersonalizado,
     intervalo,
     proximoCambio,
     kmRecorridos,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   KeyboardAvoidingView,
@@ -18,13 +18,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 import Estrellas from '@/components/ui/estrellas';
-import { Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
+import {
+  coloresTipo,
+  Gradientes,
+  Radios,
+  sombraDura,
+  type TipoPaleta,
+} from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
-import { guardarOpinion, leerMiOpinion } from '@/services/opiniones';
+import { useVehiculos } from '@/context/VehiculosContext';
+import {
+  guardarOpinion,
+  guardarResena,
+  leerMiOpinion,
+  suscribirMisResenas,
+} from '@/services/opiniones';
 import { CARACTERISTICAS } from '@/utils/opiniones';
 
-import type { CaracteristicaFavorita } from '@/types/models';
+import type {
+  CaracteristicaFavorita,
+  Resena,
+  Vehiculo,
+} from '@/types/models';
 
 function Pregunta({
   titulo,
@@ -45,12 +61,210 @@ function Pregunta({
   );
 }
 
+/*
+=======================================================
+RESEÑA DE UN VEHÍCULO
+=======================================================
+
+Cada vehículo del propietario tiene su propia tarjeta.
+Si ya existe una reseña se muestra con estrellas y textos;
+al pulsar "Escribir" o "Editar" se abre el formulario y,
+al guardar, los campos se limpian.
+=======================================================
+*/
+function ResenaVehiculo({
+  vehiculo,
+  resena,
+}: {
+  vehiculo: Vehiculo;
+  resena: Resena | undefined;
+}) {
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+  const { user } = useAuth();
+  const alerta = useAlerta();
+
+  const [abierto, setAbierto] = useState(false);
+  const [calificacion, setCalificacion] = useState(0);
+  const [titulo, setTitulo] = useState('');
+  const [comentario, setComentario] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const colorTipo = coloresTipo(paleta)[vehiculo.tipo];
+
+  const abrir = () => {
+    setCalificacion(resena?.calificacion ?? 0);
+    setTitulo(resena?.titulo ?? '');
+    setComentario(resena?.comentario ?? '');
+    setAbierto(true);
+  };
+
+  const limpiar = () => {
+    setCalificacion(0);
+    setTitulo('');
+    setComentario('');
+  };
+
+  const enviar = async () => {
+    if (!user) {
+      return;
+    }
+
+    if (!calificacion) {
+      await alerta({
+        titulo: 'Falta la calificación',
+        mensaje: 'Elige de 1 a 5 estrellas para tu vehículo.',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    if (!titulo.trim()) {
+      await alerta({
+        titulo: 'Falta el título',
+        mensaje: 'Escribe un título corto para tu reseña.',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    try {
+      setGuardando(true);
+
+      await guardarResena(user.uid, user.email ?? '', {
+        vehiculoId: vehiculo.id,
+        vehiculoNombre: vehiculo.nombre,
+        placa: vehiculo.placa,
+        tipoVehiculo: vehiculo.tipo,
+        calificacion,
+        titulo: titulo.trim(),
+        comentario: comentario.trim(),
+      });
+
+      setAbierto(false);
+      limpiar();
+
+      await alerta({
+        titulo: resena ? 'Reseña actualizada' : '¡Gracias por tu reseña!',
+        mensaje: 'Tu opinión sobre este vehículo quedó registrada.',
+        tipo: 'exito',
+      });
+    } catch {
+      await alerta({
+        titulo: 'No se pudo enviar',
+        mensaje: 'Revisa tu conexión e inténtalo de nuevo.',
+        tipo: 'error',
+      });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <View style={styles.resenaTarjeta}>
+      <View style={styles.resenaCabecera}>
+        <View style={styles.resenaInfo}>
+          <Text style={styles.resenaNombre} numberOfLines={1}>
+            {vehiculo.nombre}
+          </Text>
+          <View
+            style={[
+              styles.resenaPill,
+              { backgroundColor: colorTipo.fondo, borderColor: colorTipo.borde },
+            ]}
+          >
+            <Text style={[styles.resenaPillTexto, { color: colorTipo.texto }]}>
+              {vehiculo.tipo} • {vehiculo.placa || 'Sin placa'}
+            </Text>
+          </View>
+        </View>
+
+        {!abierto && (
+          <BotonNitro
+            titulo={resena ? 'Editar' : 'Escribir'}
+            icono={resena ? 'create' : 'star'}
+            variante="secundario"
+            tamano="pequeno"
+            onPress={abrir}
+          />
+        )}
+      </View>
+
+      {abierto ? (
+        <View style={styles.resenaForm}>
+          <Text style={styles.preguntaTitulo}>Tu calificación</Text>
+          <Estrellas valor={calificacion} onChange={setCalificacion} />
+
+          <Text style={styles.preguntaTitulo}>Título</Text>
+          <TextInput
+            style={styles.input}
+            value={titulo}
+            onChangeText={setTitulo}
+            placeholder="Ej: Excelente para la ciudad"
+            placeholderTextColor="#94A3B8"
+            maxLength={80}
+          />
+
+          <Text style={styles.preguntaTitulo}>Comentario (opcional)</Text>
+          <TextInput
+            style={[styles.input, styles.comentarioInput]}
+            value={comentario}
+            onChangeText={setComentario}
+            placeholder="Cuéntanos cómo te ha ido con este vehículo"
+            placeholderTextColor="#94A3B8"
+            multiline
+            maxLength={600}
+            textAlignVertical="top"
+          />
+
+          <BotonNitro
+            titulo={resena ? 'Actualizar reseña' : 'Enviar reseña'}
+            icono="send"
+            tamano="mediano"
+            onPress={enviar}
+            cargando={guardando}
+          />
+
+          <BotonNitro
+            titulo="Cancelar"
+            variante="fantasma"
+            tamano="pequeno"
+            onPress={() => {
+              setAbierto(false);
+              limpiar();
+            }}
+          />
+        </View>
+      ) : resena ? (
+        <View style={styles.resenaContenido}>
+          <View style={styles.resenaFilaEstrellas}>
+            <Estrellas valor={resena.calificacion} tamano={18} />
+            <Text style={styles.resenaFecha}>{resena.fecha}</Text>
+          </View>
+          <Text style={styles.resenaTitulo}>{resena.titulo}</Text>
+          {resena.comentario ? (
+            <Text style={styles.resenaComentario}>{resena.comentario}</Text>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.resenaVacia}>
+          <Ionicons name="star-outline" size={18} color={paleta.textoSuave} />
+          <Text style={styles.resenaVaciaTexto}>
+            Todavía no has reseñado este vehículo.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function OpinionScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const alerta = useAlerta();
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
+  const { vehiculos, cargando: cargandoVehiculos } = useVehiculos();
 
   const [calificacion, setCalificacion] = useState(0);
   const [facilidad, setFacilidad] = useState(0);
@@ -61,6 +275,8 @@ export default function OpinionScreen() {
   const [comentario, setComentario] = useState('');
   const [yaRespondio, setYaRespondio] = useState(false);
   const [guardando, setGuardando] = useState(false);
+
+  const [resenas, setResenas] = useState<Resena[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -84,6 +300,23 @@ export default function OpinionScreen() {
       })
       .catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    return suscribirMisResenas(user.uid, setResenas, () => {});
+  }, [user]);
+
+  /* Reseñas indexadas por vehículo para pintarlas junto a cada uno. */
+  const resenasPorVehiculo = useMemo(() => {
+    const mapa = new Map<string, Resena>();
+
+    resenas.forEach((resena) => mapa.set(resena.vehiculoId, resena));
+
+    return mapa;
+  }, [resenas]);
 
   const enviar = async () => {
     if (!user) {
@@ -140,7 +373,7 @@ export default function OpinionScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.pantalla}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.contenido}
@@ -154,7 +387,7 @@ export default function OpinionScreen() {
         >
           <Text style={styles.heroTitulo}>Danos tu opinión</Text>
           <Text style={styles.heroSubtitulo}>
-            Responde esta breve encuesta y califica Nitro Sync.
+            Responde esta breve encuesta y reseña tus vehículos.
           </Text>
         </LinearGradient>
 
@@ -247,6 +480,27 @@ export default function OpinionScreen() {
             cargando={guardando}
           />
         </View>
+
+        <View style={styles.seccionResenas}>
+          <Text style={styles.seccionTitulo}>Reseñas de tus vehículos</Text>
+          <Text style={styles.seccionSubtitulo}>
+            Califica de 1 a 5 estrellas cada vehículo y cuenta tu experiencia.
+          </Text>
+
+          {!cargandoVehiculos && vehiculos.length === 0 && (
+            <Text style={styles.resenaVaciaTexto}>
+              Registra un vehículo para poder reseñarlo.
+            </Text>
+          )}
+
+          {vehiculos.map((vehiculo) => (
+            <ResenaVehiculo
+              key={vehiculo.id}
+              vehiculo={vehiculo}
+              resena={resenasPorVehiculo.get(vehiculo.id)}
+            />
+          ))}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -262,7 +516,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     borderBottomRightRadius: 30,
   },
   heroTitulo: { color: '#FFFFFF', fontSize: 26, fontWeight: '900' },
-  heroSubtitulo: { color: 'rgba(255,255,255,0.78)', fontSize: 14, marginTop: 6 },
+  heroSubtitulo: { color: 'rgba(255,255,255,0.92)', fontSize: 14, marginTop: 6 },
   tarjeta: {
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
@@ -314,4 +568,69 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     fontSize: 14,
     color: Paleta.texto,
   },
+  seccionResenas: {
+    marginTop: 22,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  seccionTitulo: { fontSize: 18, fontWeight: '900', color: Paleta.texto },
+  seccionSubtitulo: {
+    fontSize: 13,
+    color: Paleta.textoSecundario,
+    marginTop: -4,
+    marginBottom: 4,
+  },
+  resenaTarjeta: {
+    backgroundColor: Paleta.tarjeta,
+    borderRadius: Radios.tarjeta,
+    borderWidth: 2,
+    borderColor: Paleta.bordeDuro,
+    padding: 14,
+    gap: 10,
+    ...sombraDura(3, 3),
+  },
+  resenaCabecera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  resenaInfo: { flex: 1, gap: 6 },
+  resenaNombre: { fontSize: 16, fontWeight: '900', color: Paleta.texto },
+  resenaPill: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: Radios.pastilla,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  resenaPillTexto: { fontSize: 11, fontWeight: '800' },
+  resenaForm: { gap: 10 },
+  input: {
+    backgroundColor: Paleta.fondo,
+    borderWidth: 1,
+    borderColor: Paleta.borde,
+    borderRadius: Radios.suave,
+    paddingHorizontal: 14,
+    height: 48,
+    fontSize: 14,
+    color: Paleta.texto,
+  },
+  comentarioInput: { height: 90, paddingTop: 12 },
+  resenaContenido: { gap: 6 },
+  resenaFilaEstrellas: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  resenaFecha: { fontSize: 11, color: Paleta.textoSuave },
+  resenaTitulo: { fontSize: 15, fontWeight: '800', color: Paleta.texto },
+  resenaComentario: { fontSize: 14, color: Paleta.texto, lineHeight: 20 },
+  resenaVacia: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+  },
+  resenaVaciaTexto: { fontSize: 13, color: Paleta.textoSecundario },
 });

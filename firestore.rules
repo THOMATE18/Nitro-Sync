@@ -34,7 +34,9 @@ COLECCIONES
   usuarios/{uid}/vehiculos/{id}     -> vehículos (hereda)
   administradores/{uid}             -> super admin heredado
   opiniones/{uid}                   -> encuestas
-  solicitudes/{id}                  -> cotizaciones
+  resenas/{uid}_{vehiculoId}        -> reseñas de vehículos
+  solicitudes/{id}                  -> solicitudes del propietario
+  cotizaciones/{id}                 -> cotización a una aseguradora
   organizations/{orgId}             -> aseguradoras
   plans/{planId}                    -> planes en COP
   subscriptions/{orgId}             -> suscripción mensual
@@ -45,6 +47,14 @@ COLECCIONES
   offers/{id}                       -> ofertas de renovación
   notificationLogs/{id}             -> avisos (WhatsApp)
   auditLogs/{id}                    -> auditoría
+  solicitudesSuscripcion/{id}       -> F7: cambio de plan pedido por la aseguradora
+  pagosSeguros/{id}                 -> pagos SIMULADOS de clientes a aseguradoras
+  referenciaPrimas/{id}             -> F7: tabla SOAT 2026
+  configuracionCostos/{id}          -> F7: precios sugeridos globales
+  configuracionSuscripcion/{id}     -> precio VIGENTE del plan único
+  comprasSuscripcion/{id}           -> compras SIMULADAS pendientes
+  notificacionesAdmin/{id}          -> avisos al súper administrador
+  historialSuscripciones/{id}       -> auditoría de la suscripción
 
 APLICAR
 
@@ -97,9 +107,49 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/organizations/$(orgId)).data.accesoHabilitado == true;
     }
 
+    /*
+    BLOQUEO POR MEMBRESÍA (ACTIVO)
+
+    Una aseguradora solo opera si su suscripción está ACTIVA y
+    NO ha vencido. Las suscripciones PENDIENTE, VENCIDA o
+    INACTIVA cortan el acceso a los datos de negocio.
+
+    La compra del plan NO se bloquea: una aseguradora inactiva
+    debe poder comprar para solicitar su activación.
+    */
+    function bloqueoPorMembresia() {
+      return true;
+    }
+
+    function hoyISO() {
+      return string(request.time.date().year()) + '-'
+        + (request.time.date().month() < 10 ? '0' : '') + string(request.time.date().month()) + '-'
+        + (request.time.date().day() < 10 ? '0' : '') + string(request.time.date().day());
+    }
+
+    function suscripcionRef(orgId) {
+      return /databases/$(database)/documents/subscriptions/$(orgId);
+    }
+
+    function membresiaHabilitada(orgId) {
+      return !bloqueoPorMembresia()
+        || (exists(suscripcionRef(orgId))
+          && get(suscripcionRef(orgId)).data.get('planId', null) is string
+          && get(suscripcionRef(orgId)).data.planId != ''
+          && get(suscripcionRef(orgId)).data.estado == 'active'
+          && (get(suscripcionRef(orgId)).data.get('vencimiento', null) == null
+            || get(suscripcionRef(orgId)).data.vencimiento >= hoyISO()));
+    }
+
+    function configuracionRef() {
+      return /databases/$(database)/documents/configuracionSuscripcion/super_empresarial;
+    }
+
     /* Aseguradora con acceso a SU propia organización. */
     function aseguradoraActiva() {
-      return esAseguradora() && organizacionOperativa(miOrg());
+      return esAseguradora()
+        && organizacionOperativa(miOrg())
+        && membresiaHabilitada(miOrg());
     }
 
     /* -----------------------------------------------
@@ -146,17 +196,42 @@ service cloud.firestore {
           && resource.data.aseguradoraClave != ''
           && resource.data.aseguradoraClave == get(/databases/$(database)/documents/organizations/$(miOrg())).data.aseguradoraClave);
 
-      allow update: if esSuper()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'aseguradora',
-          'telefonoAseguradora',
-          'numeroPoliza',
-          'vencimientoSeguro',
-          'seguroAsignadoPor',
-          'seguroAsignadoFecha',
-          'aseguradoraClave',
-          'contactoPropietario'
-        ]);
+      /*
+      ESCRITURA (UPDATE)
+
+      - El super_admin solo puede tocar los campos del seguro.
+      - La ASEGURADORA ACTIVA puede actualizar un vehículo SOLO
+        si es suyo (misma clave) y SOLO los campos del seguro
+        (renovación): número de póliza, vencimiento, etc.
+
+      La aseguradora NUNCA puede cambiar `aseguradoraClave` (el
+      vehículo no puede saltar a otra aseguradora) ni el
+      contacto del propietario.
+      */
+      allow update: if (esSuper()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'aseguradora',
+            'telefonoAseguradora',
+            'numeroPoliza',
+            'vencimientoSeguro',
+            'seguroAsignadoPor',
+            'seguroAsignadoFecha',
+            'aseguradoraClave',
+            'contactoPropietario'
+          ]))
+        || (aseguradoraActiva()
+          && resource.data.aseguradoraClave is string
+          && resource.data.aseguradoraClave != ''
+          && resource.data.aseguradoraClave == get(/databases/$(database)/documents/organizations/$(miOrg())).data.aseguradoraClave
+          && request.resource.data.aseguradoraClave == resource.data.aseguradoraClave
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'aseguradora',
+            'telefonoAseguradora',
+            'numeroPoliza',
+            'vencimientoSeguro',
+            'seguroAsignadoPor',
+            'seguroAsignadoFecha'
+          ]));
     }
 
     function calificacionValida(valor) {
@@ -176,6 +251,56 @@ service cloud.firestore {
         && request.resource.data.recomienda is bool
         && request.resource.data.comentario is string
         && request.resource.data.comentario.size() <= 500;
+
+      allow delete: if false;
+    }
+
+    /*
+    RESEÑAS DE VEHÍCULOS
+
+    - El propietario crea y edita SOLO la reseña de sus
+      vehículos (uid == auth.uid). El id es determinista
+      (uid_vehiculoId), así que reenviar no duplica.
+    - El administrador marca la reseña como leída o no leída:
+      su update SOLO puede tocar el campo `leida`.
+    - Nadie borra reseñas.
+    */
+    match /resenas/{resenaId} {
+      allow read: if autenticado()
+        && (resource.data.uid == request.auth.uid || esSuper());
+
+      allow create: if autenticado()
+        && request.resource.data.uid == request.auth.uid
+        && calificacionValida(request.resource.data.calificacion)
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() <= 80
+        && request.resource.data.comentario is string
+        && request.resource.data.comentario.size() <= 600
+        && request.resource.data.leida == false
+        && resenaId == request.auth.uid + '_' + request.resource.data.vehiculoId;
+
+      allow update: if (autenticado()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && calificacionValida(request.resource.data.calificacion)
+          && request.resource.data.titulo is string
+          && request.resource.data.titulo.size() <= 80
+          && request.resource.data.comentario is string
+          && request.resource.data.comentario.size() <= 600
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'vehiculoNombre',
+            'placa',
+            'tipoVehiculo',
+            'calificacion',
+            'titulo',
+            'comentario',
+            'leida',
+            'actualizadaEn'
+          ]))
+        || (esSuper()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'leida'
+          ]));
 
       allow delete: if false;
     }
@@ -203,13 +328,65 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /*
+    COTIZACIONES (PROPIETARIO -> ASEGURADORA)
+
+    Cada documento va dirigido a UNA aseguradora por su
+    `aseguradoraClave`. Se identifican por id determinista:
+
+      uid_vehiculoId_clave
+
+    - El propietario crea y lee SOLO las suyas (uid == auth.uid).
+    - La ASEGURADORA ACTIVA lee y actualiza SOLO las dirigidas a
+      su clave (`aseguradoraClave` == la de su organización). La
+      consulta incluye SIEMPRE el mismo where.
+    - La aseguradora no puede mover la cotización a otra clave ni
+      cambiar el propietario; solo el estado, la prima y la
+      atención.
+    */
+    match /cotizaciones/{cotizacionId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.uid == request.auth.uid)
+        || (aseguradoraActiva()
+          && resource.data.aseguradoraClave is string
+          && resource.data.aseguradoraClave != ''
+          && resource.data.aseguradoraClave == get(/databases/$(database)/documents/organizations/$(miOrg())).data.aseguradoraClave);
+
+      allow create: if autenticado()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.aseguradoraClave is string
+        && request.resource.data.aseguradoraClave != ''
+        && request.resource.data.estado == 'nueva'
+        && cotizacionId == request.auth.uid + '_' + request.resource.data.vehiculoId + '_' + request.resource.data.aseguradoraClave;
+
+      allow update: if esSuper()
+        || (aseguradoraActiva()
+          && resource.data.aseguradoraClave is string
+          && resource.data.aseguradoraClave != ''
+          && resource.data.aseguradoraClave == get(/databases/$(database)/documents/organizations/$(miOrg())).data.aseguradoraClave
+          && request.resource.data.aseguradoraClave == resource.data.aseguradoraClave
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'estado',
+            'primaCop',
+            'atendidaPor',
+            'atendidaFecha',
+            'actualizadaEn'
+          ]));
+
+      allow delete: if false;
+    }
+
     /* -----------------------------------------------
        ORGANIZACIONES (ASEGURADORAS)
     ----------------------------------------------- */
 
     match /organizations/{orgId} {
-      allow read: if esSuper()
-        || (esAseguradora() && miOrg() == orgId);
+      /*
+      Lectura autenticada (incluye clientes): es la ÚNICA fuente
+      del teléfóno oficial / línea de atención. El cliente nunca
+      puede escribir estos campos.
+      */
+      allow read: if autenticado();
 
       /* El super_admin administra el ciclo de vida. */
       allow create, delete: if esSuper();
@@ -223,6 +400,7 @@ service cloud.firestore {
             'web',
             'whatsapp',
             'especialidad',
+            'telefonoContacto',
             'actualizadaEn'
           ]));
     }
@@ -353,6 +531,278 @@ service cloud.firestore {
       allow create: if autenticado()
         && request.resource.data.actorUid == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    /* -----------------------------------------------
+       F7 · SOLICITUDES DE CAMBIO DE PLAN
+    ----------------------------------------------- */
+
+    match /solicitudesSuscripcion/{solicitudId} {
+      allow read: if esSuper()
+        || (esAseguradora() && resource.data.orgId == miOrg());
+
+      allow create: if aseguradoraActiva()
+        && rol() == 'insurer_admin'
+        && request.resource.data.orgId == miOrg()
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.simulado == true
+        && request.resource.data.keys().hasOnly([
+          'orgId',
+          'planId',
+          'planNombre',
+          'precioCop',
+          'motivo',
+          'estado',
+          'solicitadoPor',
+          'solicitadoEn',
+          'respondidaPor',
+          'respondidaEn',
+          'simulado'
+        ]);
+
+      /* El super_admin decide; la aseguradora no se autoaprueba. */
+      allow update: if esSuper()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'respondidaPor',
+          'respondidaEn'
+        ]);
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       PAGOS SIMULADOS DE CLIENTES A ASEGURADORAS
+
+       - El CLIENTE registra (pendiente) sobre su vehículo.
+       - La ASEGURADORA receptora confirma o rechaza.
+       - Un pago respondido es INMUTABLE.
+    ----------------------------------------------- */
+
+    match /pagosSeguros/{pagoId} {
+      allow read: if esSuper()
+        || (autenticado() && resource.data.propietarioUid == request.auth.uid)
+        || (aseguradoraActiva() && resource.data.orgId == miOrg());
+
+      allow create: if (
+          /* Cliente: solo su vehículo y su propia identidad. */
+          (autenticado()
+            && !esAseguradora()
+            && request.resource.data.propietarioUid == request.auth.uid
+            && request.resource.data.registradoPor == request.auth.uid
+            && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)/vehiculos/$(request.resource.data.vehiculoId))
+            && exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)))
+          /* Aseguradora: solo su organización (flujo heredado). */
+          || (aseguradoraActiva()
+            && request.resource.data.orgId == miOrg()
+            && request.resource.data.registradoPor == request.auth.uid)
+        )
+        && request.resource.data.simulado == true
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.montoCop is number
+        && request.resource.data.montoCop > 0
+        && request.resource.data.referencia is string
+        && request.resource.data.referencia.matches('^SIM-.*')
+        && request.resource.data.keys().hasOnly([
+          'orgId',
+          'orgNombre',
+          'vehiculoId',
+          'propietarioUid',
+          'clienteNombre',
+          'polizaId',
+          'producto',
+          'concepto',
+          'periodo',
+          'montoCop',
+          'metodoPago',
+          'fechaOperacion',
+          'referencia',
+          'estado',
+          'simulado',
+          'registradoPor',
+          'registradoEn',
+          'respondidaEn',
+          'respondidaPor'
+        ]);
+
+      /*
+      SOLO la aseguradora receptora (o el super_admin) responde,
+      y SOLO mientras el pago sigue pendiente => inmutable después.
+      El cliente NO puede confirmar sus propios pagos.
+      */
+      allow update: if resource.data.estado == 'pendiente'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado',
+          'respondidaEn',
+          'respondidaPor'
+        ])
+        && request.resource.data.estado in ['confirmado', 'rechazado']
+        && ((aseguradoraActiva()
+            && resource.data.orgId == miOrg()
+            && request.resource.data.respondidaPor == request.auth.uid)
+          || esSuper());
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       CONFIGURACIÓN CENTRALIZADA DEL PRECIO (ÚNICO PLAN)
+    ----------------------------------------------- */
+
+    match /configuracionSuscripcion/{planId} {
+      allow read: if autenticado();
+
+      allow write: if esSuper()
+        && planId == 'super_empresarial'
+        && request.resource.data.planId == 'super_empresarial'
+        && request.resource.data.precioCop is number
+        && request.resource.data.precioCop > 0
+        && request.resource.data.actualizadaPor == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'planId', 'nombre', 'precioCop', 'moneda', 'periodicidad',
+          'descripcion', 'beneficios', 'actualizadaEn', 'actualizadaPor',
+          'actualizadoPorCorreo'
+        ]);
+
+      match /historial/{cambioId} {
+        allow read: if esSuper();
+        allow create: if esSuper()
+          && request.resource.data.planId == 'super_empresarial'
+          && request.resource.data.precioCop is number
+          && request.resource.data.precioCop > 0
+          && request.resource.data.cambiadoPor == request.auth.uid
+          && request.resource.data.keys().hasOnly([
+            'planId', 'precioCop', 'precioAnteriorCop',
+            'cambiadoPor', 'cambiadoCorreo', 'creadoEn'
+          ]);
+        allow update, delete: if false;
+      }
+    }
+
+    /* -----------------------------------------------
+       COMPRAS SIMULADAS DEL PLAN SÚPER EMPRESARIAL
+
+       Precio validado contra la configuración central:
+       el navegador NO puede inventar el importe.
+    ----------------------------------------------- */
+
+    function compraSuscripcionValida() {
+      return esAseguradora()
+        /* Puede comprar aunque su plan esté INACTIVO. */
+        && organizacionOperativa(miOrg())
+        && request.resource.data.orgId == miOrg()
+        && request.resource.data.compradorUid == request.auth.uid
+        && request.resource.data.planId == 'super_empresarial'
+        && request.resource.data.estado == 'pendiente'
+        && request.resource.data.precioCop == get(configuracionRef()).data.precioCop
+        && request.resource.data.simulado == true
+        && request.resource.data.keys().hasOnly([
+          'orgId', 'orgNombre', 'planId', 'planNombre', 'precioCop',
+          'periodicidad', 'beneficios', 'estado', 'compradorUid',
+          'compradorCorreo', 'fechaCompra', 'registradoEn',
+          'aprobadaPor', 'aprobadaEn', 'simulado'
+        ]);
+    }
+
+    match /comprasSuscripcion/{compraId} {
+      /*
+      La lectura de un documento que AUN no existe se permite a
+      cualquier aseguradora: `resource` es null en ese caso, por
+      eso no se puede usar `resource.data.orgId` directamente.
+      El app hace ese getDoc para evitar compras duplicadas. No
+      filtra información (solo responde "no existe"); los
+      documentos que SI existen siguen aislados por organización.
+      */
+      allow read: if esSuper()
+        || (esAseguradora() && (
+          !exists(/databases/$(database)/documents/comprasSuscripcion/$(compraId))
+          || resource.data.orgId == miOrg()
+        ));
+
+      /* id determinista: {orgId}_AAAA-MM => una compra por mes. */
+      allow create: if compraSuscripcionValida()
+        && compraId == request.resource.data.orgId + '_'
+          + string(request.time.date().year()) + '-'
+          + (request.time.date().month() < 10 ? '0' : '') + string(request.time.date().month());
+
+      /* La aseguradora NO se aprueba a sí misma. */
+      allow update: if esSuper()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado', 'aprobadaPor', 'aprobadaEn'
+        ])
+        && request.resource.data.estado in ['aprobada', 'rechazada'];
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       NOTIFICACIONES DEL SÚPER ADMINISTRADOR
+    ----------------------------------------------- */
+
+    match /notificacionesAdmin/{notificacionId} {
+      allow read: if esSuper();
+
+      /*
+      La aseguradora solo puede crear el aviso junto a SU compra
+      en la MISMA transacción (getAfter evita avisos falsos).
+      */
+      allow create: if esSuper()
+        || (esAseguradora()
+          && organizacionOperativa(miOrg())
+          && existsAfter(/databases/$(database)/documents/comprasSuscripcion/$(notificacionId))
+          && getAfter(/databases/$(database)/documents/comprasSuscripcion/$(notificacionId)).data.orgId == miOrg()
+          && getAfter(/databases/$(database)/documents/comprasSuscripcion/$(notificacionId)).data.estado == 'pendiente'
+          && request.resource.data.compraId == notificacionId
+          && request.resource.data.orgId == miOrg()
+          && request.resource.data.precioCop == get(configuracionRef()).data.precioCop
+          && request.resource.data.leida == false
+          && request.resource.data.simulado == true
+          && request.resource.data.keys().hasOnly([
+            'compraId', 'orgId', 'orgNombre', 'planId', 'planNombre',
+            'precioCop', 'fechaCompra', 'estadoCompra', 'leida',
+            'leidaPor', 'leidaEn', 'creadoEn', 'simulado'
+          ]));
+
+      allow update: if esSuper()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'leida', 'leidaPor', 'leidaEn', 'estadoCompra'
+        ]);
+
+      allow delete: if false;
+    }
+
+    /* -----------------------------------------------
+       HISTORIAL DE SUSCRIPCIONES (COMPRAS, ACTIVACIONES...)
+    ----------------------------------------------- */
+
+    match /historialSuscripciones/{registroId} {
+      allow read: if esSuper()
+        || (esAseguradora() && resource.data.orgId == miOrg());
+
+      allow create: if esSuper()
+        && request.resource.data.responsableUid == request.auth.uid
+        && request.resource.data.simulado == true
+        && request.resource.data.precioCop is number
+        && request.resource.data.keys().hasOnly([
+          'orgId', 'orgNombre', 'tipo', 'estado', 'precioCop', 'fecha',
+          'responsableUid', 'responsableCorreo', 'motivo', 'creadoEn', 'simulado'
+        ]);
+
+      allow update, delete: if false;
+    }
+
+    /* -----------------------------------------------
+       F7 · REFERENCIA DE PRIMAS Y COSTOS GLOBALES
+    ----------------------------------------------- */
+
+    match /referenciaPrimas/{primaId} {
+      allow read: if autenticado();
+      allow write: if esSuper();
+    }
+
+    match /configuracionCostos/{costoId} {
+      allow read: if autenticado();
+      allow write: if esSuper();
     }
 
     /* -----------------------------------------------

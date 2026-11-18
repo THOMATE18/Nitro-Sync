@@ -298,7 +298,7 @@ export default function FormularioGastoScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.contenedor}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen
         options={{

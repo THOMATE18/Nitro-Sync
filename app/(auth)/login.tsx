@@ -36,7 +36,10 @@ DECISIONES DE DISEÑO
 
 - Las contraseñas usan <CampoContrasena> (botón de ojo).
 
-- "¿Olvidaste tu contraseña?" lleva a /recuperar.
+- "¿Olvidaste tu contraseña?" lleva a /recuperar. Solo
+  aparece en el acceso de usuario: las cuentas de
+  aseguradora las gestiona el administrador, así que ese
+  panel no lo muestra.
 
 En pantallas angostas las dos opciones se apilan.
 =======================================================
@@ -71,6 +74,7 @@ import {
   type TipoPaleta,
 } from '@/constants/theme';
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { resolverSesion } from '@/services/sesion';
 import BotonNitro from '@/components/ui/boton-nitro';
@@ -146,6 +150,7 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
 
   /* En pantallas angostas las opciones se apilan. */
   const apilado = width < 760;
@@ -244,10 +249,13 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + 48 },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
         persistentScrollbar
@@ -499,14 +507,6 @@ export default function LoginScreen() {
                     style={styles.botonPrincipal}
                   />
 
-                  <Pressable
-                    style={styles.linkButton}
-                    onPress={() => router.push('/(auth)/recuperar')}
-                    accessibilityRole="link"
-                  >
-                    <Text style={styles.linkTexto}>¿Olvidaste tu contraseña?</Text>
-                  </Pressable>
-
                   <View style={styles.nota}>
                     <Ionicons
                       name="lock-closed-outline"
@@ -598,7 +598,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
 
   subtitulo: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.92)',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 340,

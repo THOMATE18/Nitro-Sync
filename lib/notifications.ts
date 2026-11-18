@@ -122,6 +122,12 @@ export interface ScheduleOptions {
   body: string;
   data?: Record<string, any>;
   trigger: SchedulableNotificationTriggerInput;
+  /*
+  Identificador opcional. Al reutilizar el mismo identificador,
+  el sistema reemplaza la notificación anterior en lugar de
+  duplicarla (útil para el recordatorio diario de la racha).
+  */
+  identifier?: string;
 }
 
 /*
@@ -282,6 +288,7 @@ export async function scheduleLocalNotification(
     await ensureAndroidChannel();
 
     const id = await scheduleNotificationAsync({
+      identifier: options.identifier,
       content: {
         title: options.title,
         body: options.body,
@@ -373,6 +380,45 @@ export async function programarNotificacionDePrueba(
   });
 
   return !!id;
+}
+
+/*
+=======================================================
+NOTIFICACIÓN DIARIA (MISMA HORA CADA DÍA)
+=======================================================
+
+Programa un aviso que se repite todos los días a la hora
+indicada. Se usa para el recordatorio de la racha de
+kilometraje.
+
+El `identifier` es estable: al reprogramar se REEMPLAZA el
+aviso anterior en lugar de acumular duplicados.
+=======================================================
+*/
+export async function programarNotificacionDiaria(opciones: {
+  identifier: string;
+  hour: number;
+  minute: number;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}): Promise<string | null> {
+  if (!notificacionesSoportadas) {
+    return null;
+  }
+
+  return scheduleLocalNotification({
+    identifier: opciones.identifier,
+    title: opciones.title,
+    body: opciones.body,
+    data: opciones.data,
+    trigger: {
+      type: SchedulableTriggerInputTypes.DAILY,
+      hour: opciones.hour,
+      minute: opciones.minute,
+      channelId: CANAL_RECORDATORIOS,
+    } as any,
+  });
 }
 
 export async function cancelNotification(id: string): Promise<void> {

@@ -42,6 +42,7 @@ import SelectorFecha from '@/components/ui/selector-fecha';
 
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useVehiculos } from '@/context/VehiculosContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
 
@@ -50,11 +51,22 @@ import {
   crearMantenimiento,
 } from '@/services/mantenimientos';
 
-import type { Mantenimiento, TipoMantenimiento } from '@/types/models';
+import type {
+  Mantenimiento,
+  NuevoMantenimiento,
+  TipoAceite,
+  TipoMantenimiento,
+} from '@/types/models';
 
 import { formatoDinero, formatoFecha } from '@/utils/formato';
 
 import { esFechaISOValida, hoyISO } from '@/utils/fechas';
+
+import {
+  INTERVALO_ACEITE,
+  intervaloAceite,
+  TIPOS_ACEITE,
+} from '@/utils/mantenimiento';
 
 /* -------------------------------------------------------
    OPCIONES DE TIPO
@@ -96,6 +108,14 @@ export default function FormularioMantenimientoScreen() {
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
 
+  const { vehiculos } = useVehiculos();
+  const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
+
+  /* Intervalo por defecto según el tipo del vehículo. */
+  const intervaloPorDefecto = vehiculo
+    ? intervaloAceite(vehiculo.tipo)
+    : INTERVALO_ACEITE.Carro;
+
   const { registros, cargando } = useRegistrosVehiculo<Mantenimiento>(
     'mantenimientos',
     vehiculoId,
@@ -132,6 +152,10 @@ export default function FormularioMantenimientoScreen() {
   const [taller, setTaller] = useState('');
   const [observaciones, setObservaciones] = useState('');
 
+  /* Campos opcionales exclusivos del "Cambio de aceite". */
+  const [tipoAceite, setTipoAceite] = useState<TipoAceite | ''>('');
+  const [intervalo, setIntervalo] = useState('');
+
   const [guardando, setGuardando] = useState(false);
 
   /* -------------------------------------------------
@@ -155,6 +179,12 @@ export default function FormularioMantenimientoScreen() {
       setDescripcion(registroOriginal.descripcion);
       setTaller(registroOriginal.taller);
       setObservaciones(registroOriginal.observaciones);
+      setTipoAceite(registroOriginal.tipoAceite ?? '');
+      setIntervalo(
+        registroOriginal.intervaloAceite
+          ? String(registroOriginal.intervaloAceite)
+          : ''
+      );
     }
   }, [registroOriginal]);
 
@@ -259,6 +289,21 @@ export default function FormularioMantenimientoScreen() {
       return false;
     }
 
+    /* El intervalo personalizado solo aplica al cambio de aceite. */
+    if (tipo === 'Cambio de aceite' && intervalo.trim() !== '') {
+      const valorIntervalo = Number(intervalo.replace(/[^0-9]/g, '') || '0');
+
+      if (valorIntervalo < 1000 || valorIntervalo > 50000) {
+        await alerta({
+          titulo: 'Intervalo fuera de rango',
+          mensaje:
+            'El intervalo debe estar entre 1.000 y 50.000 km. Déjalo vacío para usar el intervalo por defecto.',
+          tipo: 'advertencia',
+        });
+        return false;
+      }
+    }
+
     if (!descripcion.trim()) {
       await alerta({
         titulo: 'Falta la descripción',
@@ -289,7 +334,7 @@ export default function FormularioMantenimientoScreen() {
       return;
     }
 
-    const datos = {
+    const datos: NuevoMantenimiento = {
       tipo,
       fecha,
       kilometraje: Number(kilometraje.replace(/[^0-9]/g, '') || '0'),
@@ -298,6 +343,16 @@ export default function FormularioMantenimientoScreen() {
       taller: taller.trim(),
       observaciones: observaciones.trim(),
     };
+
+    /*
+    El tipo de aceite y el intervalo solo se guardan en los
+    cambios de aceite. El intervalo queda en 0 cuando se deja
+    vacío, para que el cálculo use el del vehículo.
+    */
+    if (tipo === 'Cambio de aceite') {
+      datos.tipoAceite = tipoAceite;
+      datos.intervaloAceite = Number(intervalo.replace(/[^0-9]/g, '') || '0');
+    }
 
     try {
       setGuardando(true);
@@ -343,7 +398,7 @@ export default function FormularioMantenimientoScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.contenedor}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen
         options={{
@@ -389,6 +444,67 @@ export default function FormularioMantenimientoScreen() {
             })}
           </View>
         </View>
+
+        {/* =================================================
+            SECCIÓN 1b: DETALLES DEL ACEITE (solo cambio de aceite)
+            ================================================= */}
+
+        {tipo === 'Cambio de aceite' && (
+          <View style={styles.tarjeta}>
+            <Text style={styles.seccionTitulo}>Detalles del aceite</Text>
+
+            <Text style={styles.etiqueta}>Tipo de aceite (opcional)</Text>
+
+            <View style={styles.chips}>
+              {TIPOS_ACEITE.map((opcion) => {
+                const activo = tipoAceite === opcion;
+
+                return (
+                  <Pressable
+                    key={opcion}
+                    style={[styles.chip, activo && styles.chipActivo]}
+                    onPress={() => setTipoAceite(activo ? '' : opcion)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: activo }}
+                  >
+                    <Text
+                      style={[
+                        styles.chipTexto,
+                        activo && styles.chipTextoActivo,
+                      ]}
+                    >
+                      {opcion}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.etiqueta}>
+              Intervalo de cambio en km (opcional)
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder={`Por defecto: ${intervaloPorDefecto.toLocaleString(
+                'es-CO'
+              )} km`}
+              placeholderTextColor={paleta.textoSuave}
+              keyboardType="number-pad"
+              value={intervalo}
+              onChangeText={(texto) =>
+                setIntervalo(texto.replace(/[^0-9]/g, ''))
+              }
+              maxLength={6}
+            />
+
+            <Text style={styles.ayuda}>
+              Se te avisará cuando falten 500 km para el próximo cambio o si
+              ya está vencido. Déjalo vacío para usar el intervalo por defecto
+              del vehículo.
+            </Text>
+          </View>
+        )}
 
         {/* =================================================
             SECCIÓN 2: FECHA Y COSTO
@@ -587,6 +703,13 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     fontWeight: '700',
     color: Paleta.primario,
     marginTop: 4,
+  },
+
+  ayuda: {
+    fontSize: 12,
+    color: Paleta.textoSecundario,
+    lineHeight: 17,
+    marginTop: 2,
   },
 
   chips: {

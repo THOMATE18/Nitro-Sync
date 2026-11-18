@@ -48,6 +48,7 @@ import { auth } from '../../firebaseConfig';
 
 import { Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
 import { useEstilos, useTema } from '@/context/TemaContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BotonNitro from '@/components/ui/boton-nitro';
 import CampoContrasena from '@/components/ui/campo-contrasena';
 import { useAlerta } from '@/components/ui/confirm-dialog';
@@ -57,6 +58,7 @@ export default function RestablecerScreen() {
   const parametros = useLocalSearchParams<{ oobCode?: string }>();
   const styles = useEstilos(crearEstilos);
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
 
   /*
   Si el código llegó en la URL (Action URL personalizada),
@@ -140,10 +142,13 @@ export default function RestablecerScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + 48 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <LinearGradient
@@ -179,7 +184,7 @@ export default function RestablecerScreen() {
             <TextInput
               style={styles.input}
               placeholder="Pega aquí el código"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={paleta.textoSuave}
               autoCapitalize="none"
               autoCorrect={false}
               value={codigo}
@@ -264,7 +269,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   },
   subtitulo: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.92)',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 320,

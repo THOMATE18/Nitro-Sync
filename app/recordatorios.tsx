@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 
-import { ColoresRecordatorio, Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { Gradientes, Radios, Sombras, coloresRecordatorio, type TipoPaleta } from '@/constants/theme';
 
 import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
@@ -248,7 +248,7 @@ export default function RecordatoriosScreen() {
 
         {recordatorios.map((recordatorio) => {
           const dias = calcularDias(recordatorio.fecha);
-          const colores = ColoresRecordatorio[recordatorio.estado];
+          const colores = coloresRecordatorio(paleta)[recordatorio.estado];
           const avisos = avisosProgramados(
             recordatorio.fecha,
             recordatorio.estado

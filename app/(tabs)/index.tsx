@@ -50,8 +50,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router } from 'expo-router';
 
 import {
-  ColoresEstado,
-  ColoresTipo,
+  coloresEstado,
+  coloresTipo,
   Gradientes,
   Radios,
   Sombras,
@@ -65,13 +65,16 @@ import { useVehiculos } from '@/context/VehiculosContext';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 import BotonNitro from '@/components/ui/boton-nitro';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
+import TarjetaRacha from '@/components/ui/tarjeta-racha';
 import MisSegurosResumen from '@/components/mis-seguros-resumen';
 
 import { useDocumentosDeVehiculos } from '@/hooks/use-documentos';
 
 import type { Vehiculo } from '@/types/models';
 
-import { calcularEstado, diasRestantes } from '@/utils/fechas';
+import { calcularEstado, diasRestantes, hoyISO } from '@/utils/fechas';
+
+import { leerRacha, rachaVigente } from '@/utils/racha';
 
 import {
   ICONO_DOCUMENTO,
@@ -124,6 +127,32 @@ export default function HomeScreen() {
         .slice(0, 4),
     [todosDocumentos]
   );
+
+  /* -------------------------------------------------
+     RACHA DE KILOMETRAJE (resumen)
+     -------------------------------------------------
+     Se toma la mejor racha vigente entre los vehículos
+     (la que sigue viva hoy o ayer).
+     ------------------------------------------------- */
+
+  const hoy = hoyISO();
+
+  const resumenRacha = useMemo(() => {
+    let mejor = 0;
+    let ultimaFecha = '';
+
+    vehiculos.forEach((vehiculo) => {
+      const racha = leerRacha(vehiculo);
+      const vigente = rachaVigente(racha, hoy);
+
+      if (vigente > mejor) {
+        mejor = vigente;
+        ultimaFecha = racha.ultimaRachaFecha;
+      }
+    });
+
+    return { mejor, ultimaFecha };
+  }, [vehiculos, hoy]);
 
   /* -------------------------------------------------
      CERRAR SESIÓN
@@ -234,15 +263,15 @@ export default function HomeScreen() {
             style={[
               styles.typeBadge,
               {
-                backgroundColor: ColoresTipo[vehiculo.tipo].fondo,
-                borderColor: ColoresTipo[vehiculo.tipo].borde,
+                backgroundColor: coloresTipo(paleta)[vehiculo.tipo].fondo,
+                borderColor: coloresTipo(paleta)[vehiculo.tipo].borde,
               },
             ]}
           >
             <Text
               style={[
                 styles.typeBadgeText,
-                { color: ColoresTipo[vehiculo.tipo].texto },
+                { color: coloresTipo(paleta)[vehiculo.tipo].texto },
               ]}
             >
               {vehiculo.tipo}
@@ -613,7 +642,7 @@ export default function HomeScreen() {
                 {proximosVencimientos.map((documento) => {
                   const estado = calcularEstado(documento.vencimiento);
                   const dias = diasRestantes(documento.vencimiento);
-                  const colores = ColoresEstado[estado];
+                  const colores = coloresEstado(paleta)[estado];
 
                   const nombreVehiculo =
                     vehiculos.find(
@@ -675,6 +704,22 @@ export default function HomeScreen() {
             )}
 
             <MisSegurosResumen />
+
+            {/* =================================================
+                RACHA DE KILOMETRAJE (resumen compacto)
+                ================================================= */}
+
+            {vehiculos.length > 0 && (
+              <View style={styles.rachaResumen}>
+                <TarjetaRacha
+                  compacta
+                  rachaActual={resumenRacha.mejor}
+                  mejorRacha={resumenRacha.mejor}
+                  ultimaRachaFecha={resumenRacha.ultimaFecha}
+                  hoy={hoy}
+                />
+              </View>
+            )}
 
             {/* =================================================
                 ACCIONES RÁPIDAS
@@ -783,6 +828,12 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     paddingBottom: 34,
   },
 
+  /* Resumen compacto de la racha (Inicio). */
+  rachaResumen: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+
   /* -----------------------------
      HERO + HEADER
      ----------------------------- */
@@ -857,7 +908,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
 
   subtitle: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.92)',
     marginTop: 4,
   },
 

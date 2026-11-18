@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
-import { ColoresTipo, Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
+import { Gradientes, Radios, coloresTipo, sombraDura, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import { marcarSolicitudAtendida, suscribirSolicitudes } from '@/services/solicitudes';
@@ -118,7 +118,7 @@ function BandejaSolicitudes() {
 
       {ordenadas.map((solicitud, indice) => {
         const pendiente = solicitud.estado === 'Pendiente';
-        const colorTipo = ColoresTipo[solicitud.tipoVehiculo];
+        const colorTipo = coloresTipo(paleta)[solicitud.tipoVehiculo];
 
         return (
           <View
@@ -243,7 +243,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     letterSpacing: 2.5,
   },
   heroTitulo: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', marginTop: 4 },
-  heroSubtitulo: { color: 'rgba(255,255,255,0.78)', fontSize: 14, marginTop: 4 },
+  heroSubtitulo: { color: 'rgba(255,255,255,0.92)', fontSize: 14, marginTop: 4 },
   cargando: { marginTop: 30 },
   error: {
     margin: 16,
@@ -285,7 +285,7 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  pillPendiente: { backgroundColor: Paleta.advertenciaFondo, borderColor: '#FADB8A' },
+  pillPendiente: { backgroundColor: Paleta.advertenciaFondo, borderColor: Paleta.advertencia },
   pillAtendida: { backgroundColor: Paleta.exitoFondo, borderColor: '#A9EBD2' },
   pillTipo: { backgroundColor: Paleta.primarioClaro, borderColor: '#C3CFFF' },
   pillTexto: { fontSize: 11, fontWeight: '800' },

@@ -144,3 +144,29 @@ export function hoyISO(): string {
 export function formatDateForNotification(fechaISO: string): string {
   return fechaISO;
 }
+
+/*
+=====================================================
+SUMAR DÍAS A UNA FECHA ISO (AAAA-MM-DD)
+=====================================================
+
+Se usa para renovaciones: la fecha de vencimiento actual
+es la base, de modo que no se pierdan días contratados
+cuando la suscripción todavía está vigente.
+=====================================================
+*/
+export function fechaMasDias(fechaISO: string, dias: number): string {
+  const partes = fechaISO.split('-');
+  const base =
+    partes.length === 3
+      ? new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]))
+      : new Date();
+
+  base.setDate(base.getDate() + dias);
+
+  const anio = base.getFullYear();
+  const mes = String(base.getMonth() + 1).padStart(2, '0');
+  const dia = String(base.getDate()).padStart(2, '0');
+
+  return `${anio}-${mes}-${dia}`;
+}

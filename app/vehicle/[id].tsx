@@ -30,7 +30,6 @@ import React, { useEffect, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -43,9 +42,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
 import {
-  ColoresEstado,
-  ColoresRecordatorio,
-  ColoresTipo,
+  coloresEstado,
+  coloresRecordatorio,
+  coloresTipo,
   Radios,
   Sombras,
   sombraDura,
@@ -57,6 +56,8 @@ import { buscarAseguradora, telefonoMarcable } from '@/data/aseguradoras';
 import { useAuth } from '@/context/AuthContext';
 import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
+import { useLineaAtencion } from '@/hooks/use-linea-atencion';
+import { abrirEnlace } from '@/utils/contacto';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
@@ -123,6 +124,15 @@ export default function VehicleDetailScreen() {
   const { obtenerVehiculo, eliminar, cargando } = useVehiculos();
 
   const vehiculo = id ? obtenerVehiculo(id) : undefined;
+
+  /*
+  LÍNEA DE ATENCIÓN OFICIAL
+  Se lee de `organizations` en tiempo real. El teléfono del
+  vehículo queda como respaldo heredado, pero la fuente
+  canónica es el panel de la aseguradora.
+  */
+  const aseguradoraInfo = buscarAseguradora(vehiculo?.aseguradora);
+  const lineaSeguro = useLineaAtencion(aseguradoraInfo?.clave ?? null);
 
   /* -------------------------------------------------
      SESIÓN Y DOCUMENTOS DEL VEHÍCULO (Firestore)
@@ -287,25 +297,21 @@ export default function VehicleDetailScreen() {
      COLORES SEGÚN EL TIPO
      ------------------------------------------------- */
 
-  const coloresTipo = ColoresTipo[vehiculo.tipo];
+  const coloresTipoVehiculo = coloresTipo(paleta)[vehiculo.tipo];
 
   /* -------------------------------------------------
      SEGURO DEL VEHÍCULO
      ------------------------------------------------- */
 
-  const aseguradoraInfo = buscarAseguradora(vehiculo.aseguradora);
-
-  const telefonoSeguro =
-    vehiculo.telefonoAseguradora || aseguradoraInfo?.telefono || '';
+  const telefonoSeguro = lineaSeguro.telefono ?? '';
 
   const llamarAseguradora = async () => {
     if (!telefonoSeguro) {
       return;
     }
 
-    try {
-      await Linking.openURL(`tel:${telefonoMarcable(telefonoSeguro)}`);
-    } catch {
+    const abierto = await abrirEnlace(`tel:${telefonoMarcable(telefonoSeguro)}`);
+    if (!abierto) {
       await alerta({
         titulo: 'No se pudo llamar',
         mensaje: `Marca manualmente al ${telefonoSeguro}.`,
@@ -318,7 +324,7 @@ export default function VehicleDetailScreen() {
     ? calcularEstado(vehiculo.vencimientoSeguro)
     : null;
 
-  const coloresSeguro = estadoSeguro ? ColoresEstado[estadoSeguro] : null;
+  const coloresSeguro = estadoSeguro ? coloresEstado(paleta)[estadoSeguro] : null;
 
   const sinDatosSeguro =
     !vehiculo.aseguradora &&
@@ -609,15 +615,15 @@ export default function VehicleDetailScreen() {
               style={[
                 styles.portadaPill,
                 {
-                  backgroundColor: coloresTipo.fondo,
-                  borderColor: coloresTipo.borde,
+                  backgroundColor: coloresTipoVehiculo.fondo,
+                  borderColor: coloresTipoVehiculo.borde,
                 },
               ]}
             >
               <Text
                 style={[
                   styles.portadaPillTexto,
-                  { color: coloresTipo.texto },
+                  { color: coloresTipoVehiculo.texto },
                 ]}
               >
                 {vehiculo.tipo === 'Carro' ? '🚗' : '🏍️'} {vehiculo.tipo}
@@ -883,6 +889,25 @@ export default function VehicleDetailScreen() {
             </Text>
           )}
 
+          {estadoAceite.tieneRegistro &&
+            (estadoAceite.tipoAceite ||
+              estadoAceite.intervaloPersonalizado) && (
+              <Text style={styles.aceiteMeta}>
+                {[
+                  estadoAceite.tipoAceite
+                    ? `Aceite ${estadoAceite.tipoAceite.toLowerCase()}`
+                    : null,
+                  `Cada ${formatoKm(estadoAceite.intervalo)}${
+                    estadoAceite.intervaloPersonalizado
+                      ? ' (personalizado)'
+                      : ''
+                  }`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            )}
+
           <TouchableOpacity
             style={styles.aceiteBoton}
             onPress={actualizarKilometraje}
@@ -985,7 +1010,7 @@ export default function VehicleDetailScreen() {
           documentos.map((documento) => {
             const estado = calcularEstado(documento.vencimiento);
             const dias = diasRestantes(documento.vencimiento);
-            const colores = ColoresEstado[estado];
+            const colores = coloresEstado(paleta)[estado];
 
             return (
               <View key={documento.id} style={styles.docCard}>
@@ -1191,6 +1216,27 @@ export default function VehicleDetailScreen() {
                 </Text>
               </View>
 
+              {/* Datos del aceite (solo en cambios de aceite). */}
+
+              {mantenimiento.tipo === 'Cambio de aceite' &&
+                (mantenimiento.tipoAceite ||
+                  (mantenimiento.intervaloAceite ?? 0) > 0) && (
+                  <Text style={[styles.docNota, styles.docAceite]}>
+                    {[
+                      mantenimiento.tipoAceite
+                        ? `Aceite ${mantenimiento.tipoAceite.toLowerCase()}`
+                        : null,
+                      (mantenimiento.intervaloAceite ?? 0) > 0
+                        ? `Cada ${formatoKm(
+                            mantenimiento.intervaloAceite as number
+                          )}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                )}
+
               {mantenimiento.observaciones.trim() !== '' && (
                 <Text style={styles.docNota}>
                   {mantenimiento.observaciones}
@@ -1314,7 +1360,7 @@ export default function VehicleDetailScreen() {
 
         {!errorRecordatorios &&
           recordatorios.map((recordatorio) => {
-            const colores = ColoresRecordatorio[recordatorio.estado];
+            const colores = coloresRecordatorio(paleta)[recordatorio.estado];
 
             return (
               <View key={recordatorio.id} style={styles.docCard}>
@@ -2191,6 +2237,12 @@ const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     lineHeight: 17,
+  },
+
+  docAceite: {
+    color: Paleta.primario,
+    fontStyle: 'normal',
+    fontWeight: '700',
   },
 
   totalGastos: {

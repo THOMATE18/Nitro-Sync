@@ -26,10 +26,12 @@ import { Redirect, Tabs } from 'expo-router';
 
 import { useAuth } from '@/context/AuthContext';
 import { useTema } from '@/context/TemaContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AdminLayout() {
   const { esSuperAdmin, loading } = useAuth();
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
 
   if (loading) return null;
 
@@ -48,6 +50,9 @@ export default function AdminLayout() {
           borderTopWidth: 2,
           borderTopColor: paleta.bordeDuro,
           paddingTop: 6,
+          /* Suma el área segura inferior para que ninguna pestaña quede tapada. */
+          height: 58 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 6),
         },
         tabBarLabelStyle: {
           fontSize: 10,
