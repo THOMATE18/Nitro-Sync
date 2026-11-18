@@ -20,23 +20,24 @@ cambian de color cuando la pestaña está activa.
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
-import { Paleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useTema } from '@/context/TemaContext';
 import { useSolicitudesPendientes } from '@/hooks/use-solicitudes-pendientes';
 
 export default function TabsLayout() {
   const { esAdmin } = useAuth();
+  const { paleta } = useTema();
   const pendientes = useSolicitudesPendientes(esAdmin);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Paleta.primario,
-        tabBarInactiveTintColor: Paleta.textoSuave,
+        tabBarActiveTintColor: paleta.primario,
+        tabBarInactiveTintColor: paleta.textoSuave,
         tabBarStyle: {
-          backgroundColor: Paleta.tarjeta,
+          backgroundColor: paleta.tarjeta,
           borderTopWidth: 2,
-          borderTopColor: Paleta.tinta,
+          borderTopColor: paleta.bordeDuro,
           paddingTop: 6,
         },
         tabBarLabelStyle: {

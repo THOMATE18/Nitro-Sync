@@ -49,9 +49,10 @@ import * as XLSX from 'xlsx';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 
-import { Gradientes, Paleta, Radios, sombraDura } from '@/constants/theme';
+import { Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 
 import {
@@ -118,6 +119,9 @@ export default function CargaMasivaScreen() {
 
   const { user } = useAuth();
   const { vehiculos } = useVehiculos();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [etapa, setEtapa] = useState<Etapa>('inicio');
   const [archivo, setArchivo] = useState('');
@@ -327,7 +331,7 @@ export default function CargaMasivaScreen() {
           style={styles.hero}
         >
           <View style={styles.heroPill}>
-            <Ionicons name="documents" size={14} color={Paleta.acento} />
+            <Ionicons name="documents" size={14} color={paleta.acento} />
 
             <Text style={styles.heroPillTexto}>Excel</Text>
           </View>
@@ -403,7 +407,7 @@ export default function CargaMasivaScreen() {
 
         {(etapa === 'leyendo' || etapa === 'importando') && (
           <View style={styles.tarjetaCentro}>
-            <ActivityIndicator size="large" color={Paleta.primario} />
+            <ActivityIndicator size="large" color={paleta.primario} />
 
             <Text style={styles.tarjetaTitulo}>
               {etapa === 'leyendo' ? 'Leyendo archivo…' : textoProgreso}
@@ -430,22 +434,22 @@ export default function CargaMasivaScreen() {
                 <Contador
                   numero={resultado.validas.length}
                   etiqueta="correctas"
-                  color={Paleta.exito}
-                  fondo={Paleta.exitoFondo}
+                  color={paleta.textoExito}
+                  fondo={paleta.exitoFondo}
                 />
 
                 <Contador
                   numero={resultado.errores.length}
                   etiqueta="con error"
-                  color={Paleta.peligro}
-                  fondo={Paleta.peligroFondo}
+                  color={paleta.textoPeligro}
+                  fondo={paleta.peligroFondo}
                 />
 
                 <Contador
                   numero={resultado.omitidas.length}
                   etiqueta="repetidas"
-                  color={Paleta.advertencia}
-                  fondo={Paleta.advertenciaFondo}
+                  color={paleta.textoAdvertencia}
+                  fondo={paleta.advertenciaFondo}
                 />
               </View>
 
@@ -466,7 +470,7 @@ export default function CargaMasivaScreen() {
                     <Ionicons
                       name={datos.tipo === 'Moto' ? 'bicycle' : 'car-sport'}
                       size={18}
-                      color={Paleta.primario}
+                      color={paleta.primario}
                     />
 
                     <View style={styles.filaInfo}>
@@ -576,8 +580,8 @@ export default function CargaMasivaScreen() {
               size={56}
               color={
                 resumen.filasConError.length === 0
-                  ? Paleta.exito
-                  : Paleta.advertencia
+                  ? paleta.exito
+                  : paleta.advertencia
               }
             />
 
@@ -632,6 +636,8 @@ function Contador({
   color: string;
   fondo: string;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={[styles.contador, { backgroundColor: fondo }]}>
       <Text style={[styles.contadorNumero, { color }]}>{numero}</Text>
@@ -645,8 +651,9 @@ function Contador({
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: Paleta.fondo },
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: Paleta.fondo },
 
   scroll: { paddingBottom: 32 },
 
@@ -656,7 +663,7 @@ const styles = StyleSheet.create({
     borderRadius: Radios.grande,
     padding: 20,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     overflow: 'hidden',
     ...sombraDura(6, 6),
   },

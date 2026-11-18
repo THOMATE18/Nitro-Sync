@@ -21,8 +21,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import {
   formatearCop,
@@ -39,6 +40,8 @@ import {
 
 export default function SuscripcionAseguradora() {
   const { orgId, organizacion } = useAuth();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [planes, setPlanes] = useState<Plan[]>([]);
   const [suscripcion, setSuscripcion] = useState<Suscripcion | null>(null);
@@ -124,7 +127,7 @@ export default function SuscripcionAseguradora() {
               <Ionicons
                 name="checkmark-circle"
                 size={16}
-                color={Paleta.exito}
+                color={paleta.exito}
               />
               <Text style={styles.funcionTexto}>{funcion}</Text>
             </View>
@@ -166,8 +169,8 @@ export default function SuscripcionAseguradora() {
                     {
                       color:
                         pago.estado === 'pagado'
-                          ? Paleta.exito
-                          : Paleta.advertencia,
+                          ? paleta.exito
+                          : paleta.advertencia,
                     },
                   ]}
                 >
@@ -184,7 +187,7 @@ export default function SuscripcionAseguradora() {
       </View>
 
       <View style={styles.aviso}>
-        <Ionicons name="information-circle-outline" size={18} color={Paleta.primario} />
+        <Ionicons name="information-circle-outline" size={18} color={paleta.primario} />
         <Text style={styles.avisoTexto}>
           Los pagos se registran manualmente por el administrador de la
           plataforma cuando recibe la transferencia. No hay cobros automáticos
@@ -195,7 +198,7 @@ export default function SuscripcionAseguradora() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 44 },
   tarjeta: {

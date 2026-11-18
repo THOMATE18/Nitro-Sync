@@ -18,7 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Gradientes, Paleta } from '@/constants/theme';
+import { Gradientes, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 export interface EncabezadoPanelProps {
   /** Texto pequeño en mayúsculas sobre el título. */
@@ -35,9 +36,11 @@ export default function EncabezadoPanel({
   titulo,
   subtitulo,
   icono,
-  colorIcono = Paleta.acento,
+  colorIcono,
 }: EncabezadoPanelProps) {
   const insets = useSafeAreaInsets();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   return (
     <LinearGradient
@@ -57,15 +60,15 @@ export default function EncabezadoPanel({
           ) : null}
         </View>
 
-        <View style={[styles.iconoCaja, { backgroundColor: colorIcono }]}>
-          <Ionicons name={icono} size={26} color={Paleta.tinta} />
+        <View style={[styles.iconoCaja, { backgroundColor: colorIcono ?? paleta.acento }]}>
+          <Ionicons name={icono} size={26} color={paleta.tinta} />
         </View>
       </View>
     </LinearGradient>
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   hero: {
     paddingHorizontal: 20,
     paddingBottom: 44,
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
   },

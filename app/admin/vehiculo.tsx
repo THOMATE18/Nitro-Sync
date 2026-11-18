@@ -20,12 +20,13 @@ import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import SelectorFecha from '@/components/ui/selector-fecha';
 import {
   ColoresEstado,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { ASEGURADORAS, buscarAseguradora, type Aseguradora } from '@/data/aseguradoras';
+import { useEstilos, useTema } from '@/context/TemaContext';
+import { ASEGURADORAS, buscarAseguradora, claveAseguradora, type Aseguradora } from '@/data/aseguradoras';
 import { asignarSeguro, suscribirVehiculoAdmin } from '@/services/admin';
 import { suscribirDocumentos } from '@/services/documentos';
 import { suscribirPerfil } from '@/services/perfil';
@@ -37,12 +38,14 @@ import {
   textoVencimiento,
   unAnioDespues,
 } from '@/utils/admin';
-import { mensajeContacto, urlWhatsApp } from '@/utils/contacto';
+import { enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
 import { calcularEstado, hoyISO } from '@/utils/fechas';
 
 import type { Documento, Perfil, Solicitud, Vehiculo } from '@/types/models';
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={styles.dato}>
       <Text style={styles.datoEtiqueta}>{etiqueta}</Text>
@@ -56,6 +59,9 @@ export default function AdminVehiculoScreen() {
   const { user, esAdmin } = useAuth();
   const confirmar = useConfirm();
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -127,7 +133,9 @@ export default function AdminVehiculoScreen() {
   const solicitudPendiente = solicitud?.estado === 'Pendiente' ? solicitud : null;
 
   const escribirWhatsApp = () => {
-    Linking.openURL(urlWhatsApp(telefonoCliente, mensajeContacto(vehiculo)));
+    const enlace = enlaceWhatsApp(telefonoCliente, mensajeContacto(vehiculo));
+
+    if (enlace) Linking.openURL(enlace);
   };
 
   const llamarCliente = () => {
@@ -189,6 +197,14 @@ export default function AdminVehiculoScreen() {
     try {
       setGuardando(true);
 
+      /*
+      Al asignar el seguro también se refresca la clave
+      normalizada (filtro del panel de aseguradora) y la copia
+      de contacto del propietario (solo nombre y teléfono).
+      */
+      const contactoTelefono = (perfil?.telefono ?? '').trim();
+      const contactoNombre = (vehiculo.contactoPropietario?.nombre ?? '').trim();
+
       await asignarSeguro(
         uid,
         id,
@@ -197,6 +213,11 @@ export default function AdminVehiculoScreen() {
           telefonoAseguradora: seleccionada.telefono,
           numeroPoliza: poliza.trim(),
           vencimientoSeguro: vencimiento,
+          aseguradoraClave: claveAseguradora(seleccionada.nombre),
+          contactoPropietario:
+            contactoNombre || contactoTelefono
+              ? { nombre: contactoNombre, telefono: contactoTelefono }
+              : undefined,
         },
         user.uid,
         solicitudPendiente ? solicitudPendiente.id : undefined
@@ -324,7 +345,7 @@ export default function AdminVehiculoScreen() {
                 <View
                   style={[
                     styles.aseguradoraPill,
-                    { backgroundColor: marcaActual?.color ?? Paleta.primario },
+                    { backgroundColor: marcaActual?.color ?? paleta.primario },
                   ]}
                 >
                   <Text
@@ -475,7 +496,7 @@ export default function AdminVehiculoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { padding: 16, gap: 16, paddingBottom: 40 },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -483,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 16,
     gap: 10,
     ...sombraDura(4, 4),
@@ -524,7 +545,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Paleta.borde,
   },
-  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.tinta },
+  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.bordeDuro },
   chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
   chipTextoActivo: { color: '#FFFFFF' },
   input: {

@@ -41,20 +41,29 @@ import { auth } from '../../firebaseConfig';
 
 import {
   Gradientes,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
+import { useAuth } from '@/context/AuthContext';
+import { crearPerfil } from '@/services/perfil';
+import { registrarAutorizacionDatos } from '@/services/autorizacionDatos';
 import BotonNitro from '@/components/ui/boton-nitro';
+import CampoContrasena from '@/components/ui/campo-contrasena';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 
 export default function RegisterScreen() {
   const alerta = useAlerta();
+  const { refrescarSesion } = useAuth();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [autorizaDatos, setAutorizaDatos] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -101,6 +110,19 @@ export default function RegisterScreen() {
       return;
     }
 
+    /* Autorización obligatoria de tratamiento de datos */
+
+    if (!autorizaDatos) {
+      await alerta({
+        titulo: 'Autorización requerida',
+        mensaje:
+          'Debes autorizar el tratamiento de tus datos personales para crear la cuenta.',
+        tipo: 'advertencia',
+      });
+
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -110,16 +132,28 @@ export default function RegisterScreen() {
       ==================================================
       */
 
-      await createUserWithEmailAndPassword(
+      const credencial = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
         password
       );
 
       /*
-      Firebase crea la sesión automáticamente.
-      La navegación protegida muestra las pestañas.
+      Perfil + evidencia de la autorización aceptada en el
+      formulario (quién, cuándo y versión del texto).
       */
+      await crearPerfil(credencial.user.uid, credencial.user.email ?? email.trim());
+      await registrarAutorizacionDatos(
+        credencial.user.uid,
+        credencial.user.email ?? email.trim()
+      );
+
+      /*
+      Firebase crea la sesión automáticamente. Se refresca
+      la sesión para que el guard no vuelva a pedir la
+      autorización recién aceptada.
+      */
+      await refrescarSesion();
     } catch (error: any) {
       let mensaje = 'No fue posible crear la cuenta.';
 
@@ -170,7 +204,7 @@ export default function RegisterScreen() {
           </Text>
 
           <View style={styles.logoCaja}>
-            <Ionicons name="person-add" size={28} color={Paleta.tinta} />
+            <Ionicons name="person-add" size={28} color={paleta.tinta} />
           </View>
 
           <Text style={styles.titulo}>Crea tu cuenta</Text>
@@ -197,7 +231,7 @@ export default function RegisterScreen() {
             <Ionicons
               name="mail-outline"
               size={18}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
               style={styles.inputIcono}
             />
 
@@ -215,43 +249,42 @@ export default function RegisterScreen() {
 
           <Text style={styles.etiqueta}>Contraseña</Text>
 
-          <View style={styles.inputCaja}>
-            <Ionicons
-              name="lock-closed-outline"
-              size={18}
-              color={Paleta.textoSuave}
-              style={styles.inputIcono}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Mínimo 6 caracteres"
-              placeholderTextColor="#94A3B8"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-          </View>
+          <CampoContrasena
+            placeholder="Mínimo 6 caracteres"
+            value={password}
+            onChangeText={setPassword}
+          />
 
           <Text style={styles.etiqueta}>Confirmar contraseña</Text>
 
-          <View style={styles.inputCaja}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={18}
-              color={Paleta.textoSuave}
-              style={styles.inputIcono}
-            />
+          <CampoContrasena
+            placeholder="Repite tu contraseña"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Repite tu contraseña"
-              placeholderTextColor="#94A3B8"
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
-          </View>
+          {/* CASILLA OBLIGATORIA DE TRATAMIENTO DE DATOS */}
+
+          <Pressable
+            style={styles.casillaFila}
+            onPress={() => setAutorizaDatos((valor) => !valor)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: autorizaDatos }}
+            accessibilityLabel="Autorizo el tratamiento de mis datos personales"
+          >
+            <View
+              style={[styles.casilla, autorizaDatos && styles.casillaMarcada]}
+            >
+              {autorizaDatos ? (
+                <Ionicons name="checkmark" size={16} color={paleta.tinta} />
+              ) : null}
+            </View>
+
+            <Text style={styles.casillaTexto}>
+              Autorizo el tratamiento de mis datos personales conforme a la
+              política de Nitro Sync (Ley 1581 de 2012).
+            </Text>
+          </Pressable>
 
           {/* BOTÓN CREAR CUENTA */}
 
@@ -260,6 +293,7 @@ export default function RegisterScreen() {
             iconoDerecha="person-add"
             onPress={handleRegister}
             cargando={loading}
+            deshabilitado={!autorizaDatos}
             style={styles.botonPrincipal}
           />
 
@@ -294,7 +328,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -346,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -378,7 +412,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.grande,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 24,
     marginHorizontal: 18,
     marginTop: -36,
@@ -432,6 +466,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Paleta.texto,
     padding: 0,
+  },
+
+  /* -----------------------------
+     CASILLA DE AUTORIZACIÓN
+     ----------------------------- */
+
+  casillaFila: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+
+  casilla: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: Paleta.bordeDuro,
+    backgroundColor: Paleta.tarjeta,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+
+  casillaMarcada: {
+    backgroundColor: Paleta.acento,
+  },
+
+  casillaTexto: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Paleta.texto,
+    fontWeight: '600',
   },
 
   /* -----------------------------

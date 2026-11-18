@@ -210,16 +210,12 @@ export function suscribirPagosOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION_PAGOS),
-      where('orgId', '==', orgId),
-      orderBy('registradoEn', 'desc')
-    ),
+    query(collection(db, COLECCION_PAGOS), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertirPago(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) => convertirPago(documento.id, documento.data()))
+          .sort((a, b) => b.registradoEn - a.registradoEn)
       );
     },
     (error) => onError?.(error)

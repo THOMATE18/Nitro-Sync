@@ -44,6 +44,8 @@ export interface Perfil {
   email: string;
   fechaRegistro: string; // "AAAA-MM-DD"
   telefono?: string;
+  /** Nombre del propietario (opcional). Se copia a sus vehículos. */
+  nombre?: string;
 }
 
 /* -------------------------------------------------------
@@ -68,6 +70,25 @@ export interface Vehiculo {
   fechaRegistro: string; // "AAAA-MM-DD"
 
   /*
+  Documento de identidad del propietario (solo números).
+  Se pide al registrar el vehículo para poder vincularlo
+  después con una aseguradora.
+  */
+  documentoPropietario?: string;
+
+  /*
+  Autorización del propietario para tratar los datos de
+  ESTE vehículo (Ley 1581 de 2012). Guarda quién, cuándo
+  y qué versión del texto se aceptó. Se exige en el
+  formulario de registro antes de poder guardar.
+  */
+  autorizacionVehiculo?: {
+    version: string;
+    aceptadoEn: string; // ISO
+    aceptadoPor: string; // uid
+  };
+
+  /*
   SEGURO DEL VEHÍCULO (opcional).
 
   Se guardan juntos para no obligar al usuario a crear un
@@ -81,6 +102,31 @@ export interface Vehiculo {
   vencimientoSeguro?: string; // "AAAA-MM-DD"
   seguroAsignadoPor?: string;
   seguroAsignadoFecha?: string; // "AAAA-MM-DD"
+
+  /*
+  Clave normalizada de la aseguradora (ver
+  `data/aseguradoras.ts` -> `claveAseguradora`). Es la que
+  usa el panel de aseguradora para leer SOLO sus vehículos:
+
+    where('aseguradoraClave', '==', claveDeMiOrganizacion)
+
+  Queda vacía ('') cuando el vehículo no tiene seguro. Se
+  recalcula cada vez que se guarda el seguro, así que al
+  cambiar de aseguradora deja de ser visible para la anterior
+  de inmediato.
+  */
+  aseguradoraClave?: string;
+
+  /*
+  Copia de SOLO nombre y teléfono del propietario, para que su
+  aseguradora pueda contactarlo por WhatsApp sin abrir la
+  lectura de los perfiles (`usuarios/{uid}`). Se mantiene
+  actualizada al guardar el vehículo/seguro.
+  */
+  contactoPropietario?: {
+    nombre: string;
+    telefono: string;
+  };
 }
 
 export type VehiculoAdmin = Vehiculo & { propietarioUid: string };

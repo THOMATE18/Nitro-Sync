@@ -75,6 +75,9 @@ interface AuthContextType {
   /** true si el usuario debe cambiar la contraseña antes de usar la app. */
   debeCambiarContrasena: boolean;
 
+  /** true si falta aceptar el tratamiento de datos vigente. */
+  debeAutorizarDatos: boolean;
+
   /** true para insurer_admin / insurer_agent. */
   esAseguradora: boolean;
 
@@ -101,6 +104,7 @@ const AuthContext = createContext<AuthContextType>({
   orgId: null,
   organizacion: null,
   debeCambiarContrasena: false,
+  debeAutorizarDatos: false,
   esAseguradora: false,
   esSuperAdmin: false,
   refrescarSesion: async () => {},
@@ -129,6 +133,7 @@ export function AuthProvider({
   const [rol, setRol] = useState<Rol>('customer');
   const [orgId, setOrgId] = useState<string | null>(null);
   const [debeCambiarContrasena, setDebeCambiarContrasena] = useState(false);
+  const [debeAutorizarDatos, setDebeAutorizarDatos] = useState(false);
   const [organizacion, setOrganizacion] = useState<Organizacion | null>(null);
 
   /*
@@ -144,6 +149,7 @@ export function AuthProvider({
       setRol('customer');
       setOrgId(null);
       setDebeCambiarContrasena(false);
+      setDebeAutorizarDatos(false);
       setOrganizacion(null);
       return;
     }
@@ -155,6 +161,7 @@ export function AuthProvider({
     setRol(datos.rol);
     setOrgId(datos.orgId);
     setDebeCambiarContrasena(datos.debeCambiarContrasena);
+    setDebeAutorizarDatos(datos.debeAutorizarDatos);
   }, []);
 
   /*
@@ -177,6 +184,7 @@ export function AuthProvider({
         setRol('customer');
         setOrgId(null);
         setDebeCambiarContrasena(false);
+        setDebeAutorizarDatos(false);
         setOrganizacion(null);
         setLoading(false);
         return;
@@ -265,6 +273,7 @@ export function AuthProvider({
       orgId,
       organizacion,
       debeCambiarContrasena,
+      debeAutorizarDatos,
       esAseguradora,
       esSuperAdmin,
       refrescarSesion,
@@ -278,6 +287,7 @@ export function AuthProvider({
       orgId,
       organizacion,
       debeCambiarContrasena,
+      debeAutorizarDatos,
       esAseguradora,
       refrescarSesion,
       logout,

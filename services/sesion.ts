@@ -28,6 +28,8 @@ import { db } from '@/firebaseConfig';
 
 import { esAdministrador } from '@/services/roles';
 
+import { VERSION_AUTORIZACION_DATOS } from '@/services/autorizacionDatos';
+
 import { ROLES, type Rol } from '@/types/negocio';
 
 export interface DatosSesion {
@@ -35,6 +37,8 @@ export interface DatosSesion {
   orgId: string | null;
   claimsVersion: number;
   debeCambiarContrasena: boolean;
+  /** true si el perfil no tiene aceptada la versión vigente del tratamiento de datos. */
+  debeAutorizarDatos: boolean;
   correoVerificado: boolean;
   /** true si el rol vino de `administradores` y no de un claim. */
   rolHeredado: boolean;
@@ -45,6 +49,7 @@ const SESION_INVITADO: DatosSesion = {
   orgId: null,
   claimsVersion: 0,
   debeCambiarContrasena: false,
+  debeAutorizarDatos: false,
   correoVerificado: false,
   rolHeredado: false,
 };
@@ -92,6 +97,7 @@ export async function resolverSesion(usuario: User | null): Promise<DatosSesion>
   }
 
   let debeCambiarContrasena = false;
+  let debeAutorizarDatos = false;
 
   try {
     const perfil = await getDoc(doc(db, 'usuarios', usuario.uid));
@@ -99,6 +105,17 @@ export async function resolverSesion(usuario: User | null): Promise<DatosSesion>
     if (perfil.exists()) {
       const datos = perfil.data();
       debeCambiarContrasena = Boolean(datos?.seguridad?.mustChangePassword);
+
+      const versionAceptada = datos?.autorizacionDatos?.version;
+      debeAutorizarDatos =
+        typeof versionAceptada !== 'string' ||
+        versionAceptada !== VERSION_AUTORIZACION_DATOS;
+    } else {
+      /*
+      Sin perfil todavía (cuenta recién creada o cuenta
+      heredada): se pide la autorización en el primer ingreso.
+      */
+      debeAutorizarDatos = true;
     }
   } catch {
     /* Si el perfil no existe o no es legible, no se bloquea. */
@@ -109,6 +126,7 @@ export async function resolverSesion(usuario: User | null): Promise<DatosSesion>
     orgId,
     claimsVersion,
     debeCambiarContrasena,
+    debeAutorizarDatos,
     correoVerificado: usuario.emailVerified,
     rolHeredado,
   };

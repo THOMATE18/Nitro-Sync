@@ -29,7 +29,6 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -143,16 +142,12 @@ export function suscribirConsentimientosPropietario(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION),
-      where('propietarioUid', '==', propietarioUid),
-      orderBy('actualizadoEn', 'desc')
-    ),
+    query(collection(db, COLECCION), where('propietarioUid', '==', propietarioUid)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) => convertir(documento.id, documento.data()))
+          .sort((a, b) => b.actualizadoEn - a.actualizadoEn)
       );
     },
     (error) => onError?.(error)
@@ -170,16 +165,12 @@ export function suscribirConsentimientosOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION),
-      where('orgId', '==', orgId),
-      orderBy('actualizadoEn', 'desc')
-    ),
+    query(collection(db, COLECCION), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) => convertir(documento.id, documento.data()))
+          .sort((a, b) => b.actualizadoEn - a.actualizadoEn)
       );
     },
     (error) => onError?.(error)

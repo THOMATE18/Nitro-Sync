@@ -22,11 +22,12 @@ import {
   ColoresEstado,
   ColoresTipo,
   Gradientes,
-  Paleta,
   Radios,
   Sombras,
+  type TipoPaleta,
 } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { buscarAseguradora } from '@/data/aseguradoras';
 import { suscribirTodosLosVehiculos } from '@/services/admin';
 import {
@@ -61,6 +62,8 @@ function Chip({
   activo: boolean;
   onPress: () => void;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <Pressable
       onPress={onPress}
@@ -85,6 +88,8 @@ function Estadistica({
   icono: keyof typeof Ionicons.glyphMap;
   color: string;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={styles.estadistica}>
       <Ionicons name={icono} size={20} color={color} />
@@ -95,6 +100,8 @@ function Estadistica({
 }
 
 function FilaVehiculo({ vehiculo }: { vehiculo: VehiculoAdmin }) {
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
   const aseguradora = nombreAseguradora(vehiculo);
   const marca = buscarAseguradora(aseguradora);
   const estado = estadoSeguro(vehiculo);
@@ -150,7 +157,7 @@ function FilaVehiculo({ vehiculo }: { vehiculo: VehiculoAdmin }) {
             <View
               style={[
                 styles.aseguradoraPill,
-                { backgroundColor: marca?.color ?? Paleta.primario },
+                { backgroundColor: marca?.color ?? paleta.primario },
               ]}
             >
               <Text
@@ -165,7 +172,9 @@ function FilaVehiculo({ vehiculo }: { vehiculo: VehiculoAdmin }) {
             </View>
           ) : (
             <View style={[styles.aseguradoraPill, styles.sinSeguroPill]}>
-              <Text style={[styles.aseguradoraTexto, { color: '#B3123E' }]}>
+              <Text
+                style={[styles.aseguradoraTexto, { color: paleta.textoPeligro }]}
+              >
                 Sin seguro
               </Text>
             </View>
@@ -179,7 +188,7 @@ function FilaVehiculo({ vehiculo }: { vehiculo: VehiculoAdmin }) {
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={Paleta.textoSuave} />
+      <Ionicons name="chevron-forward" size={18} color={paleta.textoSuave} />
     </TouchableOpacity>
   );
 }
@@ -187,6 +196,8 @@ function FilaVehiculo({ vehiculo }: { vehiculo: VehiculoAdmin }) {
 function PanelAdmin() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -246,7 +257,7 @@ function PanelAdmin() {
           </View>
 
           <View style={styles.heroIcono}>
-            <Ionicons name="shield-checkmark" size={26} color={Paleta.tinta} />
+            <Ionicons name="shield-checkmark" size={26} color={paleta.tinta} />
           </View>
         </View>
       </LinearGradient>
@@ -256,30 +267,30 @@ function PanelAdmin() {
           valor={resumen.total}
           etiqueta="Vehículos"
           icono="car-sport"
-          color={Paleta.primario}
+          color={paleta.primario}
         />
         <Estadistica
           valor={resumen.conSeguro}
           etiqueta="Asegurados"
           icono="shield-checkmark"
-          color={Paleta.exito}
+          color={paleta.exito}
         />
         <Estadistica
           valor={resumen.sinSeguro}
           etiqueta="Sin seguro"
           icono="shield-outline"
-          color={Paleta.peligro}
+          color={paleta.peligro}
         />
         <Estadistica
           valor={resumen.porRenovar}
           etiqueta="Por renovar"
           icono="time"
-          color={Paleta.advertencia}
+          color={paleta.advertencia}
         />
       </View>
 
       <View style={styles.buscador}>
-        <Ionicons name="search" size={18} color={Paleta.textoSuave} />
+        <Ionicons name="search" size={18} color={paleta.textoSuave} />
         <TextInput
           style={styles.buscadorInput}
           placeholder="Buscar por placa, marca o póliza"
@@ -346,7 +357,7 @@ function PanelAdmin() {
       {cargando && (
         <ActivityIndicator
           size="large"
-          color={Paleta.primario}
+          color={paleta.primario}
           style={styles.cargando}
         />
       )}
@@ -385,7 +396,7 @@ export default function PanelRoute() {
   return <PanelAdmin />;
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 30 },
   hero: {
@@ -410,7 +421,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -425,7 +436,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.suave,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     paddingVertical: 10,
     alignItems: 'center',
     gap: 2,
@@ -471,7 +482,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Paleta.borde,
   },
-  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.tinta },
+  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.bordeDuro },
   chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
   chipTextoActivo: { color: '#FFFFFF' },
   contador: {
@@ -487,7 +498,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: Radios.suave,
     backgroundColor: Paleta.peligroFondo,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     fontSize: 13,
   },
   vacio: {

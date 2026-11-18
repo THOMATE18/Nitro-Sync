@@ -46,15 +46,16 @@ import {
   ColoresEstado,
   ColoresRecordatorio,
   ColoresTipo,
-  Paleta,
   Radios,
   Sombras,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 
 import { buscarAseguradora, telefonoMarcable } from '@/data/aseguradoras';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
@@ -111,6 +112,9 @@ export default function VehicleDetailScreen() {
      ------------------------------------------------- */
 
   const { id } = useLocalSearchParams<{ id: string }>();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   /* -------------------------------------------------
      VEHÍCULO DESDE FIRESTORE (contexto)
@@ -240,7 +244,7 @@ export default function VehicleDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centro}>
-          <ActivityIndicator size="large" color={Paleta.primario} />
+          <ActivityIndicator size="large" color={paleta.primario} />
 
           <Text style={styles.centroTexto}>Cargando vehículo...</Text>
         </View>
@@ -698,7 +702,7 @@ export default function VehicleDetailScreen() {
               <Ionicons
                 name="shield-checkmark"
                 size={18}
-                color={Paleta.primario}
+                color={paleta.primario}
               />
             </View>
 
@@ -826,7 +830,7 @@ export default function VehicleDetailScreen() {
               <Ionicons
                 name="water-outline"
                 size={18}
-                color={Paleta.primario}
+                color={paleta.primario}
               />
             </View>
 
@@ -900,7 +904,7 @@ export default function VehicleDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel="Registrar cambio de aceite"
           >
-            <Ionicons name="water-outline" size={18} color={Paleta.primario} />
+            <Ionicons name="water-outline" size={18} color={paleta.primario} />
 
             <Text style={styles.aceiteBotonSecundarioTexto}>
               Registrar cambio de aceite
@@ -940,7 +944,7 @@ export default function VehicleDetailScreen() {
 
         {cargandoDocumentos && !errorDocumentos && (
           <View style={styles.cargandoDocs}>
-            <ActivityIndicator size="small" color={Paleta.primario} />
+            <ActivityIndicator size="small" color={paleta.primario} />
 
             <Text style={styles.cargandoDocsTexto}>Cargando documentos...</Text>
           </View>
@@ -1040,7 +1044,7 @@ export default function VehicleDetailScreen() {
                     <Ionicons
                       name="create-outline"
                       size={15}
-                      color={Paleta.primario}
+                      color={paleta.primario}
                     />
 
                     <Text style={styles.docAccionTexto}>Editar</Text>
@@ -1100,7 +1104,7 @@ export default function VehicleDetailScreen() {
 
         {cargandoMantenimientos && !errorMantenimientos && (
           <View style={styles.cargandoDocs}>
-            <ActivityIndicator size="small" color={Paleta.primario} />
+            <ActivityIndicator size="small" color={paleta.primario} />
 
             <Text style={styles.cargandoDocsTexto}>
               Cargando mantenimientos...
@@ -1161,13 +1165,13 @@ export default function VehicleDetailScreen() {
                   style={[
                     styles.docPill,
                     {
-                      backgroundColor: Paleta.primarioClaro,
+                      backgroundColor: paleta.primarioClaro,
                       borderColor: '#C7D2FE',
                     },
                   ]}
                 >
                   <Text
-                    style={[styles.docPillTexto, { color: Paleta.primario }]}
+                    style={[styles.docPillTexto, { color: paleta.primario }]}
                   >
                     {formatoDinero(mantenimiento.costo)}
                   </Text>
@@ -1182,7 +1186,7 @@ export default function VehicleDetailScreen() {
                     : ''}
                 </Text>
 
-                <Text style={[styles.docDias, { color: Paleta.primario }]}>
+                <Text style={[styles.docDias, { color: paleta.primario }]}>
                   {formatoKm(mantenimiento.kilometraje)}
                 </Text>
               </View>
@@ -1203,7 +1207,7 @@ export default function VehicleDetailScreen() {
                   <Ionicons
                     name="create-outline"
                     size={15}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
 
                   <Text style={styles.docAccionTexto}>Editar</Text>
@@ -1267,7 +1271,7 @@ export default function VehicleDetailScreen() {
 
         {cargandoRecordatorios && !errorRecordatorios && (
           <View style={styles.cargandoDocs}>
-            <ActivityIndicator size="small" color={Paleta.primario} />
+            <ActivityIndicator size="small" color={paleta.primario} />
 
             <Text style={styles.cargandoDocsTexto}>
               Cargando recordatorios...
@@ -1370,7 +1374,7 @@ export default function VehicleDetailScreen() {
                           : 'checkmark-circle-outline'
                       }
                       size={15}
-                      color={Paleta.primario}
+                      color={paleta.primario}
                     />
 
                     <Text style={styles.docAccionTexto}>
@@ -1389,7 +1393,7 @@ export default function VehicleDetailScreen() {
                     <Ionicons
                       name="create-outline"
                       size={15}
-                      color={Paleta.primario}
+                      color={paleta.primario}
                     />
 
                     <Text style={styles.docAccionTexto}>Editar</Text>
@@ -1463,7 +1467,7 @@ export default function VehicleDetailScreen() {
 
         {cargandoGastos && !errorGastos && (
           <View style={styles.cargandoDocs}>
-            <ActivityIndicator size="small" color={Paleta.primario} />
+            <ActivityIndicator size="small" color={paleta.primario} />
 
             <Text style={styles.cargandoDocsTexto}>Cargando gastos...</Text>
           </View>
@@ -1552,7 +1556,7 @@ export default function VehicleDetailScreen() {
                   <Ionicons
                     name="create-outline"
                     size={15}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
 
                   <Text style={styles.docAccionTexto}>Editar</Text>
@@ -1625,7 +1629,7 @@ constants/theme.ts.
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -1813,7 +1817,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: Paleta.primarioClaro,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -2011,7 +2015,7 @@ const styles = StyleSheet.create({
 
   errorDocsTexto: {
     fontSize: 13,
-    color: '#B91C1C',
+    color: Paleta.textoPeligro,
     lineHeight: 18,
   },
 
@@ -2178,7 +2182,7 @@ const styles = StyleSheet.create({
   },
 
   docAccionTextoPeligro: {
-    color: '#B91C1C',
+    color: Paleta.textoPeligro,
   },
 
   docNota: {

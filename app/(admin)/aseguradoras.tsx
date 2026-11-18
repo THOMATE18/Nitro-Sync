@@ -22,15 +22,20 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
+import BotonNitro from '@/components/ui/boton-nitro';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
+import { claveAseguradora, normalizarClave } from '@/data/aseguradoras';
+import { sincronizarAseguradoraClave } from '@/services/admin';
 import {
   actualizarOrganizacion,
   suscribirOrganizaciones,
@@ -51,7 +56,7 @@ const FILTROS: { id: Filtro; etiqueta: string }[] = [
   { id: 'suspended', etiqueta: 'Suspendidas' },
 ];
 
-function colorEstado(estado: EstadoOrganizacion) {
+function colorEstado(Paleta: TipoPaleta, estado: EstadoOrganizacion) {
   switch (estado) {
     case 'active':
       return Paleta.exito;
@@ -66,10 +71,18 @@ export default function AseguradorasAdmin() {
   const { user } = useAuth();
   const alerta = useAlerta();
   const confirmar = useConfirm();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [organizaciones, setOrganizaciones] = useState<Organizacion[]>([]);
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [ocupado, setOcupado] = useState<string | null>(null);
+
+  /* Editor en línea de la clave de aseguradora. */
+  const [claveEditando, setClaveEditando] = useState<string | null>(null);
+  const [claveTexto, setClaveTexto] = useState('');
+
+  const [sincronizando, setSincronizando] = useState(false);
 
   useEffect(() => {
     return suscribirOrganizaciones(
@@ -165,8 +178,72 @@ export default function AseguradorasAdmin() {
     }
   };
 
-  const renderTarjeta = ({ item }: { item: Organizacion }) => (
-    <View style={styles.tarjeta}>
+  const abrirClave = (org: Organizacion) => {
+    setClaveEditando(org.id);
+    setClaveTexto(org.aseguradoraClave ?? claveAseguradora(org.nombre));
+  };
+
+  const guardarClave = async (org: Organizacion) => {
+    const clave = normalizarClave(claveTexto);
+
+    if (!clave) {
+      await alerta({
+        titulo: 'Clave vacía',
+        mensaje: 'Escribe una clave válida (letras, números y guion bajo).',
+        tipo: 'advertencia',
+      });
+      return;
+    }
+
+    try {
+      setOcupado(org.id);
+      await actualizarOrganizacion(org.id, { aseguradoraClave: clave });
+      await auditar('organizacion.clave', org, { aseguradoraClave: clave });
+      setClaveEditando(null);
+    } catch {
+      await alerta({
+        titulo: 'No se pudo actualizar',
+        mensaje: 'Intenta de nuevo en unos segundos.',
+        tipo: 'error',
+      });
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  const sincronizar = async () => {
+    const ok = await confirmar({
+      titulo: 'Sincronizar clave de aseguradora',
+      mensaje:
+        'Se recalcula la clave de cada vehículo a partir de su aseguradora. Solo cambia ese campo y es seguro repetirlo.',
+      textoConfirmar: 'Sincronizar',
+      icono: 'sync-outline',
+    });
+
+    if (!ok) return;
+
+    try {
+      setSincronizando(true);
+
+      const { revisados, actualizados } = await sincronizarAseguradoraClave();
+
+      await alerta({
+        titulo: 'Sincronización completa',
+        mensaje: `${revisados} vehículo(s) revisado(s), ${actualizados} actualizado(s).`,
+        tipo: 'exito',
+      });
+    } catch {
+      await alerta({
+        titulo: 'No se pudo sincronizar',
+        mensaje: 'Revisa tu conexión y las reglas de Firestore.',
+        tipo: 'error',
+      });
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
+  const renderTarjeta = ({ item }: { item: Organizacion }) => (    <View style={styles.tarjeta}>
       <View style={styles.tarjetaCabecera}>
         <View style={styles.tarjetaTextos}>
           <Text style={styles.nombre} numberOfLines={1}>
@@ -177,8 +254,8 @@ export default function AseguradorasAdmin() {
           </Text>
         </View>
 
-        <View style={[styles.estado, { borderColor: colorEstado(item.estado) }]}>
-          <Text style={[styles.estadoTexto, { color: colorEstado(item.estado) }]}>
+        <View style={[styles.estado, { borderColor: colorEstado(paleta, item.estado) }]}>
+          <Text style={[styles.estadoTexto, { color: colorEstado(paleta, item.estado) }]}>
             {ETIQUETA_ESTADO_ORG[item.estado]}
           </Text>
         </View>
@@ -188,26 +265,81 @@ export default function AseguradorasAdmin() {
         <Ionicons
           name={item.accesoHabilitado ? 'lock-open-outline' : 'lock-closed-outline'}
           size={14}
-          color={item.accesoHabilitado ? Paleta.exito : Paleta.peligro}
+          color={item.accesoHabilitado ? paleta.exito : paleta.peligro}
         />
         <Text style={styles.datosTexto}>
           Acceso {item.accesoHabilitado ? 'habilitado' : 'bloqueado'}
         </Text>
       </View>
 
+      <View style={styles.datosFila}>
+        <Ionicons name="key-outline" size={14} color={paleta.textoSecundario} />
+        <Text style={styles.datosTexto}>
+          Clave: {item.aseguradoraClave || 'sin asignar'}
+        </Text>
+      </View>
+
+      {claveEditando === item.id ? (
+        <View style={styles.editorClave}>
+          <TextInput
+            style={styles.inputClave}
+            value={claveTexto}
+            onChangeText={setClaveTexto}
+            placeholder="Ej: sura, axa_colpatria"
+            placeholderTextColor={paleta.textoSuave}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          <View style={styles.acciones}>
+            <Pressable
+              style={[styles.accion, { borderColor: paleta.exito }]}
+              onPress={() => guardarClave(item)}
+              disabled={ocupado === item.id}
+            >
+              <Ionicons name="checkmark" size={16} color={paleta.exito} />
+              <Text style={[styles.accionTexto, { color: paleta.exito }]}>
+                Guardar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.accion, { borderColor: paleta.borde }]}
+              onPress={() => setClaveEditando(null)}
+              disabled={ocupado === item.id}
+            >
+              <Ionicons name="close" size={16} color={paleta.textoSecundario} />
+              <Text style={[styles.accionTexto, { color: paleta.textoSecundario }]}>
+                Cancelar
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       {item.especialidad ? (
         <Text style={styles.datosTexto}>{item.especialidad}</Text>
       ) : null}
 
       <View style={styles.acciones}>
+        <Pressable
+          style={[styles.accion, { borderColor: paleta.primario }]}
+          onPress={() => abrirClave(item)}
+          disabled={ocupado === item.id}
+        >
+          <Ionicons name="key-outline" size={16} color={paleta.primario} />
+          <Text style={[styles.accionTexto, { color: paleta.primario }]}>
+            Clave
+          </Text>
+        </Pressable>
         {item.estado !== 'active' ? (
           <Pressable
-            style={[styles.accion, { borderColor: Paleta.exito }]}
+            style={[styles.accion, { borderColor: paleta.exito }]}
             onPress={() => cambiarEstado(item, 'active')}
             disabled={ocupado === item.id}
           >
-            <Ionicons name="checkmark-circle-outline" size={16} color={Paleta.exito} />
-            <Text style={[styles.accionTexto, { color: Paleta.exito }]}>
+            <Ionicons name="checkmark-circle-outline" size={16} color={paleta.exito} />
+            <Text style={[styles.accionTexto, { color: paleta.exito }]}>
               Activar
             </Text>
           </Pressable>
@@ -215,12 +347,12 @@ export default function AseguradorasAdmin() {
 
         {item.estado !== 'suspended' ? (
           <Pressable
-            style={[styles.accion, { borderColor: Paleta.peligro }]}
+            style={[styles.accion, { borderColor: paleta.peligro }]}
             onPress={() => cambiarEstado(item, 'suspended')}
             disabled={ocupado === item.id}
           >
-            <Ionicons name="ban-outline" size={16} color={Paleta.peligro} />
-            <Text style={[styles.accionTexto, { color: Paleta.peligro }]}>
+            <Ionicons name="ban-outline" size={16} color={paleta.peligro} />
+            <Text style={[styles.accionTexto, { color: paleta.peligro }]}>
               Suspender
             </Text>
           </Pressable>
@@ -229,7 +361,7 @@ export default function AseguradorasAdmin() {
         <Pressable
           style={[
             styles.accion,
-            { borderColor: item.accesoHabilitado ? Paleta.advertencia : Paleta.exito },
+            { borderColor: item.accesoHabilitado ? paleta.advertencia : paleta.exito },
           ]}
           onPress={() => alternarAcceso(item)}
           disabled={ocupado === item.id}
@@ -237,12 +369,12 @@ export default function AseguradorasAdmin() {
           <Ionicons
             name={item.accesoHabilitado ? 'lock-closed-outline' : 'lock-open-outline'}
             size={16}
-            color={item.accesoHabilitado ? Paleta.advertencia : Paleta.exito}
+            color={item.accesoHabilitado ? paleta.advertencia : paleta.exito}
           />
           <Text
             style={[
               styles.accionTexto,
-              { color: item.accesoHabilitado ? Paleta.advertencia : Paleta.exito },
+              { color: item.accesoHabilitado ? paleta.advertencia : paleta.exito },
             ]}
           >
             {item.accesoHabilitado ? 'Bloquear' : 'Habilitar'}
@@ -280,6 +412,18 @@ export default function AseguradorasAdmin() {
         ))}
       </View>
 
+      <View style={styles.syncFila}>
+        <BotonNitro
+          titulo="Sincronizar aseguradoraClave"
+          icono="sync-outline"
+          variante="secundario"
+          tamano="pequeno"
+          onPress={sincronizar}
+          cargando={sincronizando}
+          anchoCompleto
+        />
+      </View>
+
       <FlatList
         data={lista}
         keyExtractor={(item) => item.id}
@@ -287,7 +431,7 @@ export default function AseguradorasAdmin() {
         contentContainerStyle={styles.lista}
         ListEmptyComponent={
           <View style={styles.vacio}>
-            <Ionicons name="business-outline" size={44} color={Paleta.textoSuave} />
+            <Ionicons name="business-outline" size={44} color={paleta.textoSuave} />
             <Text style={styles.vacioTitulo}>Sin aseguradoras</Text>
             <Text style={styles.vacioTexto}>
               No hay organizaciones que coincidan con el filtro.
@@ -299,68 +443,81 @@ export default function AseguradorasAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: Paleta.fondo },
-  filtros: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginTop: -24,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radios.pastilla,
-    borderWidth: 1.5,
-    borderColor: Paleta.borde,
-    backgroundColor: Paleta.tarjeta,
-  },
-  chipActivo: { backgroundColor: Paleta.tinta, borderColor: Paleta.tinta },
-  chipTexto: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Paleta.textoSecundario,
-  },
-  chipTextoActivo: { color: Paleta.acento },
-  lista: { padding: 16, gap: 12, paddingBottom: 40 },
-  tarjeta: {
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 16,
-    gap: 8,
-    ...Sombras.suave,
-  },
-  tarjetaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tarjetaTextos: { flex: 1 },
-  nombre: { fontSize: 15.5, fontWeight: '900', color: Paleta.texto },
-  correo: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 2 },
-  estado: {
-    borderWidth: 1.5,
-    borderRadius: Radios.pastilla,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  estadoTexto: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
-  datosFila: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  datosTexto: { fontSize: 12.5, color: Paleta.textoSecundario, flexShrink: 1 },
-  acciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  accion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1.5,
-    borderRadius: Radios.pastilla,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  accionTexto: { fontSize: 12, fontWeight: '800' },
-  vacio: { alignItems: 'center', marginTop: 60, gap: 8, paddingHorizontal: 30 },
-  vacioTitulo: { fontSize: 17, fontWeight: '900', color: Paleta.texto },
-  vacioTexto: {
-    fontSize: 13,
-    color: Paleta.textoSecundario,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-});
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    pantalla: { flex: 1, backgroundColor: Paleta.fondo },
+    filtros: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 16,
+      marginTop: -24,
+    },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: Radios.pastilla,
+      borderWidth: 1.5,
+      borderColor: Paleta.borde,
+      backgroundColor: Paleta.tarjeta,
+    },
+    chipActivo: { backgroundColor: Paleta.tinta, borderColor: Paleta.bordeDuro },
+    chipTexto: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: Paleta.textoSecundario,
+    },
+    chipTextoActivo: { color: Paleta.acento },
+    syncFila: { paddingHorizontal: 16, marginTop: 12 },
+    lista: { padding: 16, gap: 12, paddingBottom: 40 },
+    tarjeta: {
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 16,
+      gap: 8,
+      ...Sombras.suave,
+    },
+    tarjetaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    tarjetaTextos: { flex: 1 },
+    nombre: { fontSize: 15.5, fontWeight: '900', color: Paleta.texto },
+    correo: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 2 },
+    estado: {
+      borderWidth: 1.5,
+      borderRadius: Radios.pastilla,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+    },
+    estadoTexto: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+    datosFila: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    datosTexto: { fontSize: 12.5, color: Paleta.textoSecundario, flexShrink: 1 },
+    editorClave: { gap: 8, marginTop: 4 },
+    inputClave: {
+      backgroundColor: Paleta.fondo,
+      borderWidth: 1,
+      borderColor: Paleta.borde,
+      borderRadius: Radios.suave,
+      paddingHorizontal: 12,
+      height: 44,
+      fontSize: 14,
+      color: Paleta.texto,
+    },
+    acciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    accion: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1.5,
+      borderRadius: Radios.pastilla,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    accionTexto: { fontSize: 12, fontWeight: '800' },
+    vacio: { alignItems: 'center', marginTop: 60, gap: 8, paddingHorizontal: 30 },
+    vacioTitulo: { fontSize: 17, fontWeight: '900', color: Paleta.texto },
+    vacioTexto: {
+      fontSize: 13,
+      color: Paleta.textoSecundario,
+      textAlign: 'center',
+      lineHeight: 19,
+    },
+  });

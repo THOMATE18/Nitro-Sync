@@ -16,8 +16,8 @@ etc.). El id del documento es determinista:
 
   {vehiculoId}_{orgId}_{producto}
 
-Los datos personales del propietario (nombre y teléfono)
-solo se incluyen si el propietario otorgó el
+Los datos personales del propietario (nombre, correo y
+teléfono) solo se incluyen si el propietario otorgó el
 consentimiento correspondiente.
 =======================================================
 */
@@ -27,7 +27,6 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  orderBy,
   query,
   setDoc,
   updateDoc,
@@ -45,6 +44,27 @@ import {
 
 const COLECCION = 'vehicleInsurerLinks';
 
+/*
+=======================================================
+ORDEN EN EL CLIENTE (SIN ÍNDICE COMPUESTO)
+=======================================================
+
+Las consultas se filtran solo por un campo de igualdad
+(`orgId` o `propietarioUid`) y se ordenan aquí en
+JavaScript. Así NO se necesita un índice compuesto
+(where + orderBy) en Firestore, que es la causa real del
+error "No se pudieron cargar los vehículos": la consulta
+anterior pedía un índice que no estaba desplegado y el
+listener fallaba con `failed-precondition`.
+=======================================================
+*/
+
+function ordenarPorActualizado(
+  vinculos: VinculoAseguradora[]
+): VinculoAseguradora[] {
+  return [...vinculos].sort((a, b) => b.actualizadoEn - a.actualizadoEn);
+}
+
 function convertir(id: string, datos: DocumentData): VinculoAseguradora {
   return {
     id,
@@ -52,6 +72,7 @@ function convertir(id: string, datos: DocumentData): VinculoAseguradora {
     propietarioUid: String(datos.propietarioUid ?? ''),
     propietarioNombre: datos.propietarioNombre ?? null,
     propietarioTelefono: datos.propietarioTelefono ?? null,
+    propietarioCorreo: datos.propietarioCorreo ?? null,
     orgId: String(datos.orgId ?? ''),
     producto: String(datos.producto ?? 'General'),
     placa: String(datos.placa ?? ''),
@@ -83,15 +104,13 @@ export function suscribirVinculosOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION),
-      where('orgId', '==', orgId),
-      orderBy('actualizadoEn', 'desc')
-    ),
+    query(collection(db, COLECCION), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
+        ordenarPorActualizado(
+          snapshot.docs.map((documento) =>
+            convertir(documento.id, documento.data())
+          )
         )
       );
     },
@@ -108,13 +127,14 @@ export function suscribirVinculosPropietario(
   return onSnapshot(
     query(
       collection(db, COLECCION),
-      where('propietarioUid', '==', propietarioUid),
-      orderBy('actualizadoEn', 'desc')
+      where('propietarioUid', '==', propietarioUid)
     ),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
+        ordenarPorActualizado(
+          snapshot.docs.map((documento) =>
+            convertir(documento.id, documento.data())
+          )
         )
       );
     },
@@ -128,11 +148,13 @@ export function suscribirTodosVinculos(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(collection(db, COLECCION), orderBy('actualizadoEn', 'desc')),
+    query(collection(db, COLECCION)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
+        ordenarPorActualizado(
+          snapshot.docs.map((documento) =>
+            convertir(documento.id, documento.data())
+          )
         )
       );
     },
@@ -145,6 +167,7 @@ export interface NuevoVinculo {
   propietarioUid: string;
   propietarioNombre?: string | null;
   propietarioTelefono?: string | null;
+  propietarioCorreo?: string | null;
   orgId: string;
   producto: string;
   placa: string;
@@ -172,6 +195,7 @@ export async function crearVinculo(datos: NuevoVinculo): Promise<string> {
       propietarioUid: datos.propietarioUid,
       propietarioNombre: datos.propietarioNombre ?? null,
       propietarioTelefono: datos.propietarioTelefono ?? null,
+      propietarioCorreo: datos.propietarioCorreo ?? null,
       orgId: datos.orgId,
       producto: datos.producto,
       placa: datos.placa,

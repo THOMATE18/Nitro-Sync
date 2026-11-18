@@ -36,12 +36,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { Gradientes, Paleta, Radios, Sombras } from '@/constants/theme';
+import { Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
@@ -75,6 +76,9 @@ export default function ActualizarKilometrajeScreen() {
 
   const alerta = useAlerta();
   const confirmar = useConfirm();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const vehiculo = vehiculoId ? obtenerVehiculo(vehiculoId) : undefined;
 
@@ -262,7 +266,7 @@ export default function ActualizarKilometrajeScreen() {
             <Ionicons
               name="speedometer-outline"
               size={20}
-              color={Paleta.textoSecundario}
+              color={paleta.textoSecundario}
             />
 
             <TextInput
@@ -273,7 +277,7 @@ export default function ActualizarKilometrajeScreen() {
               }
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor={Paleta.textoSuave}
+              placeholderTextColor={paleta.textoSuave}
               maxLength={7}
               accessibilityLabel="Kilometraje actual"
             />
@@ -307,7 +311,7 @@ export default function ActualizarKilometrajeScreen() {
           <View style={styles.card}>
             <View style={styles.aceiteHeader}>
               <View style={styles.aceiteIcono}>
-                <Ionicons name="water-outline" size={18} color={Paleta.primario} />
+                <Ionicons name="water-outline" size={18} color={paleta.primario} />
               </View>
 
               <Text style={styles.seccionTituloFlex}>Cambio de aceite</Text>
@@ -371,7 +375,7 @@ export default function ActualizarKilometrajeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Paleta.fondo },
   scroll: { paddingBottom: 30 },
 

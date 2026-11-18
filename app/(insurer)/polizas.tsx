@@ -6,9 +6,14 @@ NITRO SYNC - PANEL ASEGURADORA · PÓLIZAS Y OFERTAS
 Dos secciones:
 
   PÓLIZAS  -> pólizas emitidas por la organización. Se
-              crean a partir de un vehículo vinculado.
+              crean a partir de un vehículo con el seguro
+              de la aseguradora (por `aseguradoraClave`).
   OFERTAS  -> propuestas de renovación enviadas al
               propietario, que las acepta o rechaza.
+
+Los vehículos se leen con `suscribirVehiculosAseguradora`:
+la aseguradora SOLO ve los suyos (nunca descarga todo ni
+filtra en el cliente).
 
 Toda creación queda registrada en `auditLogs`.
 =======================================================
@@ -27,12 +32,13 @@ import {
   View,
 } from 'react-native';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
-import { suscribirVinculosOrg } from '@/services/vinculos';
+import { suscribirVehiculosAseguradora } from '@/services/vehiculosAseguradora';
 import {
   crearOferta,
   crearPoliza,
@@ -47,12 +53,12 @@ import {
   type EstadoPoliza,
   type Oferta,
   type Poliza,
-  type VinculoAseguradora,
 } from '@/types/negocio';
+import type { VehiculoAdmin } from '@/types/models';
 
 type Seccion = 'polizas' | 'ofertas';
 
-function colorPoliza(estado: EstadoPoliza) {
+function colorPoliza(Paleta: TipoPaleta, estado: EstadoPoliza) {
   switch (estado) {
     case 'vigente':
       return Paleta.exito;
@@ -68,17 +74,21 @@ function colorPoliza(estado: EstadoPoliza) {
 export default function PolizasAseguradora() {
   const { user, orgId, organizacion } = useAuth();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+
+  const clave = organizacion?.aseguradoraClave ?? '';
 
   const [seccion, setSeccion] = useState<Seccion>('polizas');
   const [polizas, setPolizas] = useState<Poliza[]>([]);
   const [ofertas, setOfertas] = useState<Oferta[]>([]);
-  const [vinculos, setVinculos] = useState<VinculoAseguradora[]>([]);
+  const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
 
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   /* Campos del formulario. */
-  const [vinculoId, setVinculoId] = useState<string | null>(null);
+  const [vehiculoId, setVehiculoId] = useState<string | null>(null);
   const [producto, setProducto] = useState('Todo riesgo');
   const [numero, setNumero] = useState('');
   const [vigenciaInicio, setVigenciaInicio] = useState('');
@@ -92,24 +102,26 @@ export default function PolizasAseguradora() {
 
     const pararPolizas = suscribirPolizasOrg(orgId, setPolizas);
     const pararOfertas = suscribirOfertasOrg(orgId, setOfertas);
-    const pararVinculos = suscribirVinculosOrg(orgId, (lista) =>
-      setVinculos(lista.filter((v) => v.estado === 'activo'))
-    );
 
     return () => {
       pararPolizas();
       pararOfertas();
-      pararVinculos();
     };
   }, [orgId]);
 
-  const vinculo = useMemo(
-    () => vinculos.find((v) => v.id === vinculoId) ?? null,
-    [vinculos, vinculoId]
+  useEffect(() => {
+    if (!clave) return;
+
+    return suscribirVehiculosAseguradora(clave, setVehiculos);
+  }, [clave]);
+
+  const vehiculo = useMemo(
+    () => vehiculos.find((v) => v.id === vehiculoId) ?? null,
+    [vehiculos, vehiculoId]
   );
 
   const limpiar = () => {
-    setVinculoId(null);
+    setVehiculoId(null);
     setNumero('');
     setVigenciaInicio('');
     setVigenciaFin('');
@@ -118,13 +130,30 @@ export default function PolizasAseguradora() {
     setMostrarFormulario(false);
   };
 
+  const seleccionarVehiculo = (v: VehiculoAdmin) => {
+    setVehiculoId(v.id);
+
+    if (!user) return;
+
+    void registrarAuditoria({
+      actorUid: user.uid,
+      actorCorreo: user.email,
+      actorRol: 'insurer_admin',
+      orgId,
+      accion: 'vehiculo.abrir',
+      entidad: 'vehiculos',
+      entidadId: v.id,
+      detalle: { placa: v.placa ?? '', propietarioUid: v.propietarioUid },
+    });
+  };
+
   const guardarPoliza = async () => {
     if (!orgId || !user) return;
 
-    if (!vinculo) {
+    if (!vehiculo) {
       await alerta({
         titulo: 'Falta el vehículo',
-        mensaje: 'Selecciona el vehículo vinculado al que pertenece la póliza.',
+        mensaje: 'Selecciona el vehículo al que pertenece la póliza.',
         tipo: 'advertencia',
       });
       return;
@@ -143,12 +172,12 @@ export default function PolizasAseguradora() {
       setGuardando(true);
 
       const id = await crearPoliza({
-        vehiculoId: vinculo.vehiculoId,
-        propietarioUid: vinculo.propietarioUid,
+        vehiculoId: vehiculo.id,
+        propietarioUid: vehiculo.propietarioUid,
         orgId,
         producto: producto.trim() || 'General',
         numero: numero.trim(),
-        placa: vinculo.placa,
+        placa: vehiculo.placa,
         vigenciaInicio: vigenciaInicio.trim(),
         vigenciaFin: vigenciaFin.trim(),
         primaCop: prima ? Number(prima.replace(/[^\d]/g, '')) : null,
@@ -162,7 +191,7 @@ export default function PolizasAseguradora() {
         accion: 'poliza.crear',
         entidad: 'policies',
         entidadId: id,
-        detalle: { numero: numero.trim(), placa: vinculo.placa },
+        detalle: { numero: numero.trim(), placa: vehiculo.placa },
       });
 
       await alerta({
@@ -186,7 +215,7 @@ export default function PolizasAseguradora() {
   const guardarOferta = async () => {
     if (!orgId || !user) return;
 
-    if (!vinculo) {
+    if (!vehiculo) {
       await alerta({
         titulo: 'Falta el vehículo',
         mensaje: 'Selecciona el vehículo al que se enviará la oferta.',
@@ -208,9 +237,9 @@ export default function PolizasAseguradora() {
       setGuardando(true);
 
       const id = await crearOferta({
-        polizaId: vinculo.poliza ?? '',
-        vehiculoId: vinculo.vehiculoId,
-        propietarioUid: vinculo.propietarioUid,
+        polizaId: vehiculo.numeroPoliza ?? '',
+        vehiculoId: vehiculo.id,
+        propietarioUid: vehiculo.propietarioUid,
         orgId,
         titulo: titulo.trim(),
         descripcion: descripcion.trim() || null,
@@ -226,7 +255,7 @@ export default function PolizasAseguradora() {
         accion: 'oferta.crear',
         entidad: 'offers',
         entidadId: id,
-        detalle: { titulo: titulo.trim(), placa: vinculo.placa },
+        detalle: { titulo: titulo.trim(), placa: vehiculo.placa },
       });
 
       await alerta({
@@ -247,13 +276,19 @@ export default function PolizasAseguradora() {
     }
   };
 
-  const renderSelectorVinculo = () => (
+  const renderSelectorVehiculo = () => (
     <View style={styles.selector}>
-      <Text style={styles.etiqueta}>Vehículo vinculado</Text>
+      <Text style={styles.etiqueta}>Vehículo con tu seguro</Text>
 
-      {vinculos.length === 0 ? (
+      {!clave ? (
         <Text style={styles.ayuda}>
-          No hay vehículos activos. Actívalos en la pestaña “Vehículos”.
+          Tu aseguradora aún no tiene una clave asignada. Pide al super
+          administrador que la configure.
+        </Text>
+      ) : vehiculos.length === 0 ? (
+        <Text style={styles.ayuda}>
+          Aún no hay vehículos con tu seguro. Aparecerán cuando un propietario
+          registre una póliza con tu aseguradora.
         </Text>
       ) : (
         <ScrollView
@@ -261,19 +296,19 @@ export default function PolizasAseguradora() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}
         >
-          {vinculos.map((v) => (
+          {vehiculos.map((v) => (
             <Pressable
               key={v.id}
-              style={[styles.chip, vinculoId === v.id && styles.chipActivo]}
-              onPress={() => setVinculoId(v.id)}
+              style={[styles.chip, vehiculoId === v.id && styles.chipActivo]}
+              onPress={() => seleccionarVehiculo(v)}
             >
               <Text
                 style={[
                   styles.chipTexto,
-                  vinculoId === v.id && styles.chipTextoActivo,
+                  vehiculoId === v.id && styles.chipTextoActivo,
                 ]}
               >
-                {v.placa || v.vehiculoId.slice(0, 6)} · {v.marca}
+                {v.placa || v.id.slice(0, 6)} · {v.marca}
               </Text>
             </Pressable>
           ))}
@@ -288,7 +323,7 @@ export default function PolizasAseguradora() {
         {seccion === 'polizas' ? 'Nueva póliza' : 'Nueva oferta'}
       </Text>
 
-      {renderSelectorVinculo()}
+      {renderSelectorVehiculo()}
 
       {seccion === 'polizas' ? (
         <>
@@ -298,7 +333,7 @@ export default function PolizasAseguradora() {
             value={producto}
             onChangeText={setProducto}
             placeholder="Todo riesgo, SOAT, etc."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
           />
 
           <Text style={styles.etiqueta}>Número de póliza</Text>
@@ -307,7 +342,7 @@ export default function PolizasAseguradora() {
             value={numero}
             onChangeText={setNumero}
             placeholder="POL-2026-0001"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
             autoCapitalize="characters"
           />
         </>
@@ -319,7 +354,7 @@ export default function PolizasAseguradora() {
             value={titulo}
             onChangeText={setTitulo}
             placeholder="Renovación de póliza"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
           />
 
           <Text style={styles.etiqueta}>Descripción</Text>
@@ -328,7 +363,7 @@ export default function PolizasAseguradora() {
             value={descripcion}
             onChangeText={setDescripcion}
             placeholder="Detalle de la propuesta"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
             multiline
           />
         </>
@@ -346,7 +381,7 @@ export default function PolizasAseguradora() {
               seccion === 'polizas' ? setVigenciaInicio : setVigenciaFin
             }
             placeholder="2026-01-01"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={paleta.textoSuave}
           />
         </View>
 
@@ -358,7 +393,7 @@ export default function PolizasAseguradora() {
               value={vigenciaFin}
               onChangeText={setVigenciaFin}
               placeholder="2026-12-31"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={paleta.textoSuave}
             />
           </View>
         ) : null}
@@ -370,7 +405,7 @@ export default function PolizasAseguradora() {
         value={prima}
         onChangeText={setPrima}
         placeholder="850000"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={paleta.textoSuave}
         keyboardType="numeric"
       />
 
@@ -467,11 +502,11 @@ export default function PolizasAseguradora() {
                     <View
                       style={[
                         styles.estado,
-                        { borderColor: colorPoliza(p.estado) },
+                        { borderColor: colorPoliza(paleta, p.estado) },
                       ]}
                     >
                       <Text
-                        style={[styles.estadoTexto, { color: colorPoliza(p.estado) }]}
+                        style={[styles.estadoTexto, { color: colorPoliza(paleta, p.estado) }]}
                       >
                         {ETIQUETA_ESTADO_POLIZA[p.estado]}
                       </Text>
@@ -500,9 +535,9 @@ export default function PolizasAseguradora() {
                   <View style={styles.tarjetaCabecera}>
                     <Text style={styles.tarjetaTitulo}>{o.titulo}</Text>
                     <View
-                      style={[styles.estado, { borderColor: Paleta.primario }]}
+                      style={[styles.estado, { borderColor: paleta.primario }]}
                     >
-                      <Text style={[styles.estadoTexto, { color: Paleta.primario }]}>
+                      <Text style={[styles.estadoTexto, { color: paleta.primario }]}>
                         {ETIQUETA_ESTADO_OFERTA[o.estado]}
                       </Text>
                     </View>
@@ -524,7 +559,7 @@ export default function PolizasAseguradora() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 44 },
   segmentos: {
@@ -538,7 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.suave,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     paddingVertical: 10,
     alignItems: 'center',
   },

@@ -1,3 +1,26 @@
+/*
+=======================================================
+NITRO SYNC - CONTACTO (TELÉFONO Y WHATSAPP)
+=======================================================
+
+CONSTRUCTOR ÚNICO de enlaces de WhatsApp para toda la
+app. Antes había dos lógicas distintas (una en
+`utils/contacto.ts` y otra en `services/whatsapp.ts`), lo
+que producía enlaces distintos según la pantalla. Ahora
+TODO pasa por `enlaceWhatsApp()`.
+
+Regla de normalización (Colombia):
+
+  - Se dejan solo los dígitos.
+  - A un celular de 10 dígitos se le antepone `57`
+    (indicativo del país) para que `wa.me` funcione.
+  - Si ya viene con indicativo (12 dígitos, `57...`) se
+    usa tal cual.
+  - Si el número no alcanza un mínimo razonable (8 dígitos)
+    se devuelve `null`: no hay enlace.
+=======================================================
+*/
+
 import { nombreAseguradora, textoVencimiento } from '@/utils/admin';
 
 import type { Vehiculo } from '@/types/models';
@@ -15,14 +38,26 @@ export function esCelularValido(texto: string): boolean {
   );
 }
 
-export function telefonoInternacional(texto: string): string {
-  const digitos = soloDigitos(texto);
+/** Normaliza a formato internacional: antepone 57 a celulares de 10 dígitos. */
+export function telefonoInternacional(texto: string | null | undefined): string {
+  const digitos = soloDigitos(texto ?? '');
 
   return digitos.length === 10 ? `57${digitos}` : digitos;
 }
 
-export function urlWhatsApp(telefono: string, mensaje: string): string {
-  return `https://wa.me/${telefonoInternacional(telefono)}?text=${encodeURIComponent(mensaje)}`;
+/**
+ * Constructor ÚNICO de enlaces `wa.me` con mensaje prellenado.
+ * Devuelve `null` si el número no es válido.
+ */
+export function enlaceWhatsApp(
+  telefono: string | null | undefined,
+  mensaje: string
+): string | null {
+  const destino = telefonoInternacional(telefono);
+
+  if (destino.length < 8) return null;
+
+  return `https://wa.me/${destino}?text=${encodeURIComponent(mensaje)}`;
 }
 
 export function mensajeContacto(vehiculo: Vehiculo): string {

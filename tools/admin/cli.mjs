@@ -63,11 +63,13 @@ import {
   PROYECTO,
   ahoraISO,
   asignarClaims,
+  borrarDocumento,
   buscarUsuarioPorCorreo,
   cifrar,
   crearUsuario,
   decodificarDocumento,
   descifrar,
+  eliminarUsuario,
   generarContrasena,
   generarFrase,
   guardarDocumento,
@@ -603,6 +605,369 @@ async function comandoBootstrapAdmin() {
 }
 
 /* -----------------------------------------------
+   COMANDO: seed  /  cleanup-seed
+-----------------------------------------------
+
+Crea DATOS DE PRUEBA claramente marcados con
+`is_test: true` para poder borrarlos despues sin tocar
+los datos reales. NO modifica ninguna cuenta existente.
+
+  - Organizacion "Aseguradora Demo Test" (orgId demo-test)
+  - Cuenta de aseguradora demo (demo.aseguradora@example.com)
+  - Propietario demo (propietario.demo@example.com)
+  - 3 vehiculos del propietario demo
+  - 3 vinculos (solicitado, activo, revocado)
+  - Consentimientos operativos (y comercial en el activo)
+    para probar los avisos de renovacion
+
+La contrasena de las cuentas demo se toma de la variable
+de entorno NITRO_SEED_PASSWORD. Si no se define, se genera
+una y se guarda en un archivo LOCAL fuera del repositorio
+(seed-demo.json). Nunca se sube al repositorio.
+----------------------------------------------- */
+
+const SEED = {
+  orgId: 'demo-test',
+  orgNombre: 'Aseguradora Demo Test',
+  aseguradoraCorreo: 'demo.aseguradora@example.com',
+  aseguradoraPrefijo: 'DemoAseguradora',
+  propietarioCorreo: 'propietario.demo@example.com',
+  propietarioPrefijo: 'DemoPropietario',
+};
+
+const ARCHIVO_SEED = join(DIR_ADMIN, 'seed-demo.json');
+
+/**
+ * Fecha (AAAA-MM-DD) a `dias` de hoy. Se usa para que la
+ * demo de renovaciones siempre tenga una poliza dentro del
+ * umbral, sin depender de la fecha en que se ejecute.
+ */
+function fechaEnDias(dias) {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+}
+
+const VEHICULOS_SEED = [
+  {
+    id: 'demo-vehiculo-1',
+    nombre: 'Demo Sedán',
+    marca: 'Mazda',
+    modelo: '3',
+    year: 2021,
+    tipo: 'Carro',
+    placa: 'DEM001',
+    color: 'Rojo',
+    kilometraje: 42000,
+    imagen: '',
+    producto: 'SOAT',
+    estado: 'solicitado',
+    poliza: null,
+    vigencia: fechaEnDias(60),
+  },
+  {
+    id: 'demo-vehiculo-2',
+    nombre: 'Demo Camioneta',
+    marca: 'Toyota',
+    modelo: 'Hilux',
+    year: 2022,
+    tipo: 'Carro',
+    placa: 'DEM002',
+    color: 'Blanco',
+    kilometraje: 31000,
+    imagen: '',
+    producto: 'Todo riesgo',
+    estado: 'activo',
+    poliza: 'DEMO-POL-002',
+    vigencia: fechaEnDias(15),
+  },
+  {
+    id: 'demo-vehiculo-3',
+    nombre: 'Demo Moto',
+    marca: 'Yamaha',
+    modelo: 'FZ',
+    year: 2020,
+    tipo: 'Moto',
+    placa: 'DEM003',
+    color: 'Azul',
+    kilometraje: 18500,
+    imagen: '',
+    producto: 'SOAT',
+    estado: 'revocado',
+    poliza: null,
+    vigencia: fechaEnDias(-30),
+  },
+];
+
+async function asegurarCuentaDemo(correo, contrasena, nombre) {
+  const existente = await buscarUsuarioPorCorreo(correo);
+  let uid = existente?.localId ?? null;
+
+  if (!uid) {
+    const creado = await crearUsuario({ correo, contrasena, nombre });
+    uid = creado.localId;
+  } else {
+    await actualizarUsuario(uid, { password: contrasena });
+  }
+
+  return uid;
+}
+
+async function comandoSeed() {
+  const contrasenaBase =
+    process.env.NITRO_SEED_PASSWORD && process.env.NITRO_SEED_PASSWORD.length >= 6
+      ? process.env.NITRO_SEED_PASSWORD
+      : null;
+
+  const contrasenaAseguradora =
+    contrasenaBase ?? generarContrasena(SEED.aseguradoraPrefijo);
+  const contrasenaPropietario =
+    contrasenaBase ?? generarContrasena(SEED.propietarioPrefijo);
+
+  const marca = ahoraISO();
+
+  /* 1. Organizacion demo (is_test = true). */
+  await guardarDocumento(`organizations/${SEED.orgId}`, {
+    nombre: SEED.orgNombre,
+    slug: SEED.orgId,
+    correo: SEED.aseguradoraCorreo,
+    telefono: '+57 000 000 0000',
+    web: null,
+    whatsapp: null,
+    color: '#7C3AED',
+    especialidad: 'Pruebas',
+    estado: 'active',
+    accesoHabilitado: true,
+    is_test: true,
+    creadaEn: marca,
+    actualizadaEn: marca,
+  });
+
+  /* 2. Cuenta de aseguradora demo. */
+  const uidAseguradora = await asegurarCuentaDemo(
+    SEED.aseguradoraCorreo,
+    contrasenaAseguradora,
+    SEED.orgNombre
+  );
+
+  await asignarClaims(uidAseguradora, {
+    role: 'insurer_admin',
+    orgId: SEED.orgId,
+    claimsVersion: 1,
+  });
+
+  await guardarDocumento(`usuarios/${uidAseguradora}`, {
+    uid: uidAseguradora,
+    email: SEED.aseguradoraCorreo,
+    nombre: SEED.orgNombre,
+    role: 'insurer_admin',
+    orgId: SEED.orgId,
+    estado: 'activo',
+    is_test: true,
+    fechaRegistro: marca.slice(0, 10),
+    seguridad: {
+      mustChangePassword: false,
+      passwordChangedAt: marca,
+      credencialTemporalDesde: null,
+    },
+  });
+
+  /* 3. Propietario demo. */
+  const uidPropietario = await asegurarCuentaDemo(
+    SEED.propietarioCorreo,
+    contrasenaPropietario,
+    'Propietario Demo'
+  );
+
+  await guardarDocumento(`usuarios/${uidPropietario}`, {
+    uid: uidPropietario,
+    email: SEED.propietarioCorreo,
+    nombre: 'Propietario Demo',
+    role: 'customer',
+    telefono: '+57 300 000 0000',
+    estado: 'activo',
+    is_test: true,
+    fechaRegistro: marca.slice(0, 10),
+    seguridad: {
+      mustChangePassword: false,
+      passwordChangedAt: marca,
+    },
+  });
+
+  /* 4. Vehiculos + vinculos demo. */
+  for (const vehiculo of VEHICULOS_SEED) {
+    await guardarDocumento(
+      `usuarios/${uidPropietario}/vehiculos/${vehiculo.id}`,
+      {
+        uid: uidPropietario,
+        nombre: vehiculo.nombre,
+        marca: vehiculo.marca,
+        modelo: vehiculo.modelo,
+        year: vehiculo.year,
+        tipo: vehiculo.tipo,
+        placa: vehiculo.placa,
+        color: vehiculo.color,
+        kilometraje: vehiculo.kilometraje,
+        imagen: vehiculo.imagen,
+        fechaRegistro: marca.slice(0, 10),
+        is_test: true,
+      }
+    );
+
+    const vinculoId = `${vehiculo.id}_${SEED.orgId}_${vehiculo.producto}`;
+
+    await guardarDocumento(`vehicleInsurerLinks/${vinculoId}`, {
+      vehiculoId: vehiculo.id,
+      propietarioUid: uidPropietario,
+      propietarioNombre: 'Propietario Demo',
+      propietarioTelefono: '+57 300 000 0000',
+      propietarioCorreo: SEED.propietarioCorreo,
+      orgId: SEED.orgId,
+      producto: vehiculo.producto,
+      placa: vehiculo.placa,
+      marca: vehiculo.marca,
+      modelo: vehiculo.modelo,
+      year: vehiculo.year,
+      tipo: vehiculo.tipo,
+      poliza: vehiculo.poliza,
+      vigencia: vehiculo.vigencia,
+      estado: vehiculo.estado,
+      datosPropietarioVisibles: true,
+      is_test: true,
+      creadoEn: Date.now(),
+      actualizadoEn: Date.now(),
+    });
+
+    /*
+    Consentimientos del propietario demo: operativo
+    (indispensable para los avisos de renovacion de la
+    Fase 8) y comercial para el vehiculo activo.
+    */
+    const finalidades =
+      vehiculo.estado === 'activo'
+        ? ['operativo', 'comercial']
+        : ['operativo'];
+
+    for (const finalidad of finalidades) {
+      await guardarDocumento(
+        `consents/${vehiculo.id}_${SEED.orgId}_${finalidad}`,
+        {
+          vehiculoId: vehiculo.id,
+          propietarioUid: uidPropietario,
+          orgId: SEED.orgId,
+          finalidad,
+          estado: 'otorgado',
+          alcance:
+            finalidad === 'operativo'
+              ? ['nombre', 'correo', 'telefono', 'poliza']
+              : ['correo', 'telefono'],
+          otorgadoEn: marca,
+          revocadoEn: null,
+          actualizadoEn: Date.now(),
+          is_test: true,
+        }
+      );
+    }
+  }
+
+  /* 5. Guardar credenciales demo FUERA del repositorio. */
+  prepararDirectorio();
+  writeFileSync(
+    ARCHIVO_SEED,
+    JSON.stringify(
+      {
+        proyecto: PROYECTO,
+        generadoEn: marca,
+        nota: 'Datos de prueba (is_test=true). Borrar con: node tools/admin/cli.mjs cleanup-seed',
+        aseguradora: {
+          correo: SEED.aseguradoraCorreo,
+          contrasena: contrasenaAseguradora,
+          uid: uidAseguradora,
+          orgId: SEED.orgId,
+        },
+        propietario: {
+          correo: SEED.propietarioCorreo,
+          contrasena: contrasenaPropietario,
+          uid: uidPropietario,
+        },
+      },
+      null,
+      2
+    ),
+    { encoding: 'utf8', mode: 0o600 }
+  );
+
+  console.log('Datos de prueba creados (is_test = true):');
+  console.log(`  Organizacion : ${SEED.orgNombre} (${SEED.orgId})`);
+  console.log(`  Aseguradora  : ${SEED.aseguradoraCorreo}  uid=${uidAseguradora}`);
+  console.log(`  Propietario  : ${SEED.propietarioCorreo}  uid=${uidPropietario}`);
+  console.log(`  Vehiculos    : ${VEHICULOS_SEED.length} (solicitado, activo, revocado)`);
+  console.log('  Consentim.   : operativo (todos) + comercial (activo)');
+  console.log(`  Credenciales : ${ARCHIVO_SEED}`);
+  if (!contrasenaBase) {
+    console.log('');
+    console.log('  Contrasenas de prueba (solo para esta sesion):');
+    console.log(`    ${SEED.aseguradoraCorreo} -> ${contrasenaAseguradora}`);
+    console.log(`    ${SEED.propietarioCorreo} -> ${contrasenaPropietario}`);
+  }
+}
+
+async function comandoCleanupSeed() {
+  let borrados = 0;
+
+  /* 1. Vinculos demo. */
+  const vinculos = await listarDocumentos('vehicleInsurerLinks');
+  for (const vinculo of vinculos) {
+    if (vinculo.is_test === true) {
+      await borrarDocumento(`vehicleInsurerLinks/${vinculo.__id}`);
+      borrados += 1;
+    }
+  }
+
+  /* 1b. Consentimientos demo. */
+  const consentimientos = await listarDocumentos('consents');
+  for (const consentimiento of consentimientos) {
+    if (consentimiento.is_test === true) {
+      await borrarDocumento(`consents/${consentimiento.__id}`);
+      borrados += 1;
+    }
+  }
+
+  /* 2. Vehiculos demo (subcoleccion del propietario). */
+  const usuarios = await listarDocumentos('usuarios');
+  for (const usuario of usuarios) {
+    if (usuario.is_test !== true) continue;
+
+    const vehiculos = await listarDocumentos(
+      `usuarios/${usuario.__id}/vehiculos`
+    );
+    for (const vehiculo of vehiculos) {
+      await borrarDocumento(
+        `usuarios/${usuario.__id}/vehiculos/${vehiculo.__id}`
+      );
+      borrados += 1;
+    }
+
+    await borrarDocumento(`usuarios/${usuario.__id}`);
+    borrados += 1;
+
+    if (usuario.uid) {
+      await eliminarUsuario(usuario.uid);
+    }
+  }
+
+  /* 3. Organizacion demo. */
+  const organizacion = await leerDocumento(`organizations/${SEED.orgId}`);
+  if (organizacion?.is_test === true) {
+    await borrarDocumento(`organizations/${SEED.orgId}`);
+    borrados += 1;
+  }
+
+  console.log(`Datos de prueba eliminados: ${borrados} documento(s).`);
+  console.log('Las cuentas reales no fueron tocadas.');
+}
+
+/* -----------------------------------------------
    ENRUTADOR
 ----------------------------------------------- */
 
@@ -616,11 +981,13 @@ const comandos = {
   credentials: comandoCredentials,
   'deploy-rules': comandoDeployRules,
   'bootstrap-admin': comandoBootstrapAdmin,
+  seed: comandoSeed,
+  'cleanup-seed': comandoCleanupSeed,
 };
 
 if (!comandos[comando]) {
   console.log(
-    'Comandos: backup | provision | verify | isolation | credentials | deploy-rules | bootstrap-admin'
+    'Comandos: backup | provision | verify | isolation | credentials | deploy-rules | bootstrap-admin | seed | cleanup-seed'
   );
   process.exit(1);
 }

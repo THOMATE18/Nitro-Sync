@@ -37,14 +37,15 @@ import { useRouter } from 'expo-router';
 import {
   ColoresTipo,
   Gradientes,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 
 import { formatoKm, formatoPlaca } from '@/utils/formato';
@@ -53,6 +54,8 @@ export default function ExploreScreen() {
   const router = useRouter();
 
   const { vehiculos, cargando, error } = useVehiculos();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   /* -------------------------------------------------
      NAVEGAR AL DETALLE DEL VEHÍCULO
@@ -81,7 +84,7 @@ export default function ExploreScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centro}>
-          <ActivityIndicator size="large" color={Paleta.primario} />
+          <ActivityIndicator size="large" color={paleta.primario} />
 
           <Text style={styles.centroTexto}>Cargando tu garaje...</Text>
         </View>
@@ -143,7 +146,7 @@ export default function ExploreScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={18}
-                color={Paleta.blanco}
+                color={paleta.blanco}
               />
             </TouchableOpacity>
           </View>
@@ -168,7 +171,7 @@ export default function ExploreScreen() {
         {!error && vehiculos.length === 0 && (
           <View style={styles.vacio}>
             <View style={styles.vacioIcono}>
-              <Ionicons name="car-sport" size={38} color={Paleta.primario} />
+              <Ionicons name="car-sport" size={38} color={paleta.primario} />
             </View>
 
             <Text style={styles.vacioTitulo}>Tu garaje está vacío</Text>
@@ -244,7 +247,7 @@ export default function ExploreScreen() {
                   <Ionicons
                     name="speedometer-outline"
                     size={13}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
 
                   <Text style={styles.vehicleKm}>
@@ -257,7 +260,7 @@ export default function ExploreScreen() {
                 <Ionicons
                   name="chevron-forward"
                   size={18}
-                  color={Paleta.tinta}
+                  color={paleta.tinta}
                 />
               </View>
             </TouchableOpacity>
@@ -272,7 +275,7 @@ export default function ExploreScreen() {
    ESTILOS
    ======================================================= */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     ...sombraDura(3, 3, 'rgba(0,0,0,0.35)'),
@@ -395,7 +398,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Paleta.peligroFondo,
     borderWidth: 1.5,
-    borderColor: '#B3123E',
+    borderColor: Paleta.textoPeligro,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: Radios.suave,
@@ -405,7 +408,7 @@ const styles = StyleSheet.create({
   errorTexto: {
     flex: 1,
     fontSize: 13,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     lineHeight: 18,
     fontWeight: '600',
   },
@@ -421,7 +424,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderRadius: Radios.grande,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 24,
     ...sombraDura(4, 4),
   },
@@ -432,7 +435,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: Paleta.primarioClaro,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -471,7 +474,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 10,
     marginBottom: 14,
     ...sombraDura(4, 4),
@@ -549,7 +552,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: Paleta.primarioClaro,
     borderWidth: 1.5,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,

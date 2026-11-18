@@ -13,12 +13,21 @@ Datos guardados en Firestore (subcolección vehiculos):
   nombre, tipo, marca, modelo, year,
   placa, color, kilometraje, imagen,
   fechaRegistro y uid (agrega el contexto).
+  Además: documentoPropietario (solo números) y la
+  autorización de tratamiento de datos del vehículo.
 
 El diseño se organiza en tarjetas con secciones:
   1. Información principal
   2. Especificaciones
   3. Identificación y uso
   4. Imagen
+
+VALIDACIONES
+  - Placa con formato válido (mayúsculas, 3 letras +
+    números) y SIN duplicados en el garaje.
+  - Documento del propietario solo numérico.
+  - Casilla de autorización OBLIGATORIA: el botón de
+    guardar permanece deshabilitado hasta marcarla.
 
 =======================================================
 */
@@ -44,24 +53,28 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import {
   ColoresTipo,
   Gradientes,
-  Paleta,
   Radios,
   Sombras,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 
-import { ASEGURADORAS } from '@/data/aseguradoras';
+import { ASEGURADORAS, claveAseguradora } from '@/data/aseguradoras';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import SelectorFecha from '@/components/ui/selector-fecha';
 import { useAlerta } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos, type DatosVehiculo } from '@/context/VehiculosContext';
 import {
   buscarImagenVehiculo,
   imagenPorDefecto,
 } from '@/services/imagenVehiculo';
-import type { TipoVehiculo } from '@/types/models';
+import { VERSION_AUTORIZACION_DATOS } from '@/services/autorizacionDatos';
+import { suscribirPerfil } from '@/services/perfil';
+import type { Perfil, TipoVehiculo } from '@/types/models';
 import { formatoKm, formatoPlaca } from '@/utils/formato';
 import {
   AYUDA_PLACA,
@@ -69,6 +82,7 @@ import {
   formatearPlaca,
   esPlacaValida,
   LARGO_PLACA,
+  limpiarPlaca,
   progresoPlaca,
 } from '@/utils/placa';
 
@@ -83,9 +97,14 @@ const ANIO_ACTUAL = new Date().getFullYear();
 export default function FormularioVehiculoScreen() {
   const { vehiculoId } = useLocalSearchParams<{ vehiculoId?: string }>();
 
-  const { obtenerVehiculo, crear, actualizar } = useVehiculos();
+  const { obtenerVehiculo, crear, actualizar, vehiculos } = useVehiculos();
+
+  const { user } = useAuth();
 
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const vehiculoOriginal = vehiculoId
     ? obtenerVehiculo(vehiculoId)
@@ -124,6 +143,33 @@ export default function FormularioVehiculoScreen() {
 
   /*
   ======================================================
+  DOCUMENTO DEL PROPIETARIO
+
+  Solo números (cédula / NIT). Sirve para vincular el
+  vehículo con una aseguradora más adelante.
+  ======================================================
+  */
+
+  const [documentoPropietario, setDocumentoPropietario] = useState(
+    vehiculoOriginal?.documentoPropietario ?? ''
+  );
+
+  /*
+  ======================================================
+  AUTORIZACIÓN DE TRATAMIENTO DE DATOS (VEHÍCULO)
+
+  Casilla OBLIGATORIA: el botón de guardar permanece
+  deshabilitado hasta marcarla. En edición, si el vehículo
+  ya venía autorizado, arranca marcada.
+  ======================================================
+  */
+
+  const [autorizaDatos, setAutorizaDatos] = useState(
+    Boolean(vehiculoOriginal?.autorizacionVehiculo)
+  );
+
+  /*
+  ======================================================
   SEGURO (opcional)
 
   Se guarda junto al vehículo para que el detalle muestre
@@ -146,6 +192,34 @@ export default function FormularioVehiculoScreen() {
   const [vencimientoSeguro, setVencimientoSeguro] = useState(
     vehiculoOriginal?.vencimientoSeguro ?? ''
   );
+
+  /*
+  ======================================================
+  CONTACTO DEL PROPIETARIO
+
+  El nombre y el teléfono del propietario se copian al
+  documento del vehículo (`contactoPropietario`) para que
+  su aseguradora pueda contactarlo por WhatsApp sin leer
+  el perfil (`usuarios/{uid}`). El teléfono viene del
+  perfil; el nombre se puede escribir aquí (opcional).
+  ======================================================
+  */
+
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+
+  const [nombrePropietario, setNombrePropietario] = useState(
+    vehiculoOriginal?.contactoPropietario?.nombre ?? ''
+  );
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const limpiar = suscribirPerfil(user.uid, setPerfil);
+
+    return limpiar;
+  }, [user]);
 
   /*
   ======================================================
@@ -276,6 +350,21 @@ export default function FormularioVehiculoScreen() {
   ======================================================
   */
 
+  /*
+  Placa duplicada: se compara contra los vehículos del
+  garaje ignorando el propio vehículo cuando se edita.
+  Se deriva en el render (no en un efecto).
+  */
+  const placaNormalizada = limpiarPlaca(placa);
+
+  const placaDuplicada =
+    placaNormalizada.length > 0 &&
+    vehiculos.some(
+      (item) =>
+        item.id !== vehiculoId &&
+        limpiarPlaca(item.placa) === placaNormalizada
+    );
+
   const validar = async (): Promise<boolean> => {
     if (!nombre.trim()) {
       await alerta({
@@ -302,12 +391,50 @@ export default function FormularioVehiculoScreen() {
       return false;
     }
 
+    if (!documentoPropietario.trim()) {
+      await alerta({
+        titulo: 'Falta el documento',
+        mensaje: 'Escribe el número de documento del propietario.',
+        tipo: 'advertencia',
+      });
+      return false;
+    }
+
+    if (!/^[0-9]+$/.test(documentoPropietario.trim())) {
+      await alerta({
+        titulo: 'Documento inválido',
+        mensaje: 'El documento del propietario solo debe tener números.',
+        tipo: 'advertencia',
+      });
+      return false;
+    }
+
     if (placa.trim() && !esPlacaValida(placa, tipo)) {
       await alerta({
         titulo: 'Placa incompleta',
         mensaje: `La placa de ${
           tipo === 'Carro' ? 'un carro' : 'una moto'
         } debe tener ${AYUDA_PLACA[tipo]}.`,
+        tipo: 'advertencia',
+      });
+      return false;
+    }
+
+    if (placa.trim() && placaDuplicada) {
+      await alerta({
+        titulo: 'Placa repetida',
+        mensaje:
+          'Ya tienes un vehículo registrado con esa placa. Revisa tu garaje antes de continuar.',
+        tipo: 'advertencia',
+      });
+      return false;
+    }
+
+    if (!autorizaDatos) {
+      await alerta({
+        titulo: 'Autorización requerida',
+        mensaje:
+          'Debes autorizar el tratamiento de los datos del vehículo para guardarlo.',
         tipo: 'advertencia',
       });
       return false;
@@ -345,6 +472,25 @@ export default function FormularioVehiculoScreen() {
         year: Number(year) || ANIO_ACTUAL,
       }));
 
+    /*
+    Contacto del propietario: SOLO nombre y teléfono. El
+    teléfono viene del perfil; el nombre, del campo opcional
+    de este formulario (o del perfil si algún día lo tiene).
+    Se omite por completo si no hay ninguno de los dos.
+    */
+    const contactoNombre = (
+      nombrePropietario.trim() ||
+      perfil?.nombre?.trim() ||
+      ''
+    ).trim();
+
+    const contactoTelefono = (perfil?.telefono ?? '').trim();
+
+    const contactoPropietario =
+      contactoNombre || contactoTelefono
+        ? { nombre: contactoNombre, telefono: contactoTelefono }
+        : undefined;
+
     const datos: DatosVehiculo = {
       nombre: nombre.trim(),
       tipo,
@@ -362,6 +508,29 @@ export default function FormularioVehiculoScreen() {
       telefonoAseguradora: telefonoAseguradora.trim(),
       numeroPoliza: numeroPoliza.trim(),
       vencimientoSeguro: vencimientoSeguro || '',
+      /*
+      Clave normalizada de la aseguradora: la usa el panel de
+      la aseguradora para leer SOLO sus vehículos. Se recalcula
+      en cada guardado, así que al cambiar de aseguradora deja
+      de ser visible para la anterior. Vacía si no hay seguro.
+      */
+      aseguradoraClave: claveAseguradora(aseguradora.trim()),
+      contactoPropietario,
+      documentoPropietario: documentoPropietario.trim(),
+      /*
+      Autorización del vehículo: se conserva la evidencia
+      original si ya existía; si es la primera vez, se
+      registra quién y cuándo con la versión vigente.
+      */
+      autorizacionVehiculo:
+        vehiculoOriginal?.autorizacionVehiculo ??
+        (autorizaDatos
+          ? {
+              version: VERSION_AUTORIZACION_DATOS,
+              aceptadoEn: new Date().toISOString(),
+              aceptadoPor: user?.uid ?? '',
+            }
+          : undefined),
     };
 
     try {
@@ -454,7 +623,7 @@ export default function FormularioVehiculoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Mazda 3"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={nombre}
             onChangeText={setNombre}
             maxLength={40}
@@ -509,7 +678,7 @@ export default function FormularioVehiculoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Mazda, Yamaha"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={marca}
             onChangeText={setMarca}
             maxLength={30}
@@ -522,7 +691,7 @@ export default function FormularioVehiculoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 3, FZ 2.0"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 value={modelo}
                 onChangeText={setModelo}
                 maxLength={30}
@@ -535,7 +704,7 @@ export default function FormularioVehiculoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 2022"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 keyboardType="number-pad"
                 value={year}
                 onChangeText={setYear}
@@ -549,7 +718,7 @@ export default function FormularioVehiculoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Gris"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={color}
             onChangeText={setColor}
             maxLength={30}
@@ -563,14 +732,53 @@ export default function FormularioVehiculoScreen() {
         <View style={styles.tarjeta}>
           <Text style={styles.seccionTitulo}>Identificación y uso</Text>
 
-          <View style={styles.fila}>
+          <Text style={styles.etiqueta}>Documento del propietario *</Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: 1023456789"
+            placeholderTextColor={paleta.textoSuave}
+            keyboardType="number-pad"
+            value={documentoPropietario}
+            onChangeText={(texto) =>
+              setDocumentoPropietario(texto.replace(/[^0-9]/g, ''))
+            }
+            maxLength={15}
+          />
+
+          <Text style={styles.ayudaPlaca}>
+            Solo números. Se usa para vincular el vehículo con una aseguradora.
+          </Text>
+
+          <Text style={[styles.etiqueta, styles.filaConMargen]}>
+            Nombre del propietario
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Juan Pérez"
+            placeholderTextColor={paleta.textoSuave}
+            value={nombrePropietario}
+            onChangeText={setNombrePropietario}
+            maxLength={60}
+          />
+
+          <Text style={styles.ayudaPlaca}>
+            Se comparte con tu aseguradora para contactarte por WhatsApp.
+          </Text>
+
+          <View style={[styles.fila, styles.filaConMargen]}>
             <View style={styles.mitad}>
               <Text style={styles.etiqueta}>Placa</Text>
 
               <TextInput
-                style={[styles.input, styles.inputPlaca]}
+                style={[
+                  styles.input,
+                  styles.inputPlaca,
+                  placaDuplicada && styles.inputError,
+                ]}
                 placeholder={EJEMPLO_PLACA[tipo]}
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 value={placa}
@@ -583,12 +791,16 @@ export default function FormularioVehiculoScreen() {
               <Text
                 style={[
                   styles.ayudaPlaca,
-                  esPlacaValida(placa, tipo) && styles.ayudaPlacaOk,
+                  placaDuplicada
+                    ? styles.ayudaPlacaError
+                    : esPlacaValida(placa, tipo) && styles.ayudaPlacaOk,
                 ]}
               >
-                {esPlacaValida(placa, tipo)
-                  ? '✓ Placa válida'
-                  : `${AYUDA_PLACA[tipo]} · ${progresoPlaca(placa, tipo)}/${LARGO_PLACA}`}
+                {placaDuplicada
+                  ? '✗ Ya tienes un vehículo con esta placa'
+                  : esPlacaValida(placa, tipo)
+                    ? '✓ Placa válida'
+                    : `${AYUDA_PLACA[tipo]} · ${progresoPlaca(placa, tipo)}/${LARGO_PLACA}`}
               </Text>
             </View>
 
@@ -598,7 +810,7 @@ export default function FormularioVehiculoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 36500"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 keyboardType="number-pad"
                 value={kilometraje}
                 onChangeText={(texto) =>
@@ -639,7 +851,7 @@ export default function FormularioVehiculoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: SURA, Bolívar, AXA..."
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={aseguradora}
             onChangeText={setAseguradora}
             maxLength={40}
@@ -691,7 +903,7 @@ export default function FormularioVehiculoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="+57 601 000 0000"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 keyboardType="phone-pad"
                 value={telefonoAseguradora}
                 onChangeText={setTelefonoAseguradora}
@@ -705,7 +917,7 @@ export default function FormularioVehiculoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 12345678"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 value={numeroPoliza}
                 onChangeText={setNumeroPoliza}
                 maxLength={30}
@@ -737,7 +949,7 @@ export default function FormularioVehiculoScreen() {
           <View style={styles.autoFila}>
             {mostrandoBusqueda ? (
               <>
-                <ActivityIndicator size="small" color={Paleta.primario} />
+                <ActivityIndicator size="small" color={paleta.primario} />
 
                 <Text style={styles.autoTexto}>
                   Buscando una foto del vehículo…
@@ -748,7 +960,7 @@ export default function FormularioVehiculoScreen() {
                 <Ionicons
                   name="sparkles-outline"
                   size={15}
-                  color={Paleta.primario}
+                  color={paleta.primario}
                 />
 
                 <Text style={styles.autoTexto}>
@@ -809,6 +1021,34 @@ export default function FormularioVehiculoScreen() {
         </View>
 
         {/* =================================================
+            AUTORIZACIÓN DE TRATAMIENTO DE DATOS
+            ================================================= */}
+
+        <View style={styles.tarjeta}>
+          <Pressable
+            style={styles.casillaFila}
+            onPress={() => setAutorizaDatos((valor) => !valor)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: autorizaDatos }}
+            accessibilityLabel="Autorizo el tratamiento de los datos del vehículo"
+          >
+            <View
+              style={[styles.casilla, autorizaDatos && styles.casillaMarcada]}
+            >
+              {autorizaDatos ? (
+                <Ionicons name="checkmark" size={16} color={paleta.tinta} />
+              ) : null}
+            </View>
+
+            <Text style={styles.casillaTexto}>
+              Autorizo el tratamiento de los datos de este vehículo y de sus
+              documentos conforme a la política de Nitro Sync (Ley 1581 de
+              2012). Es obligatorio para registrarlo.
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* =================================================
             BOTÓN GUARDAR
             ================================================= */}
 
@@ -823,6 +1063,7 @@ export default function FormularioVehiculoScreen() {
           icono={modo === 'editar' ? 'checkmark' : 'add'}
           onPress={guardar}
           cargando={guardando}
+          deshabilitado={!autorizaDatos}
           anchoCompleto
           style={styles.botonGuardar}
         />
@@ -837,7 +1078,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -911,7 +1152,7 @@ const styles = StyleSheet.create({
   pillOpcionalTexto: {
     fontSize: 10,
     fontWeight: '900',
-    color: '#3E5A08',
+    color: Paleta.textoAcento,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -946,7 +1187,7 @@ const styles = StyleSheet.create({
 
   chipSeguroActivo: {
     backgroundColor: Paleta.acento,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     ...sombraDura(2, 2),
   },
 
@@ -1003,6 +1244,50 @@ const styles = StyleSheet.create({
   ayudaPlacaOk: {
     color: Paleta.exito,
     fontWeight: '700',
+  },
+
+  ayudaPlacaError: {
+    color: Paleta.peligro,
+    fontWeight: '700',
+  },
+
+  inputError: {
+    borderColor: Paleta.peligro,
+    borderWidth: 1.5,
+  },
+
+  filaConMargen: {
+    marginTop: 14,
+  },
+
+  casillaFila: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+
+  casilla: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: Paleta.bordeDuro,
+    backgroundColor: Paleta.tarjeta,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+
+  casillaMarcada: {
+    backgroundColor: Paleta.acento,
+  },
+
+  casillaTexto: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Paleta.texto,
+    fontWeight: '600',
   },
 
   ayudaImagen: {

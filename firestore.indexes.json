@@ -1,6 +1,13 @@
 {
   "indexes": [
     {
+      "collectionGroup": "vehiculos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "aseguradoraClave", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "consents",
       "queryScope": "COLLECTION",
       "fields": [

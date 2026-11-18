@@ -35,7 +35,7 @@ Fechas aceptadas: AAAA-MM-DD, DD/MM/AAAA, fecha de Excel
 =======================================================
 */
 
-import { buscarAseguradora } from '../data/aseguradoras';
+import { buscarAseguradora, claveAseguradora } from '../data/aseguradoras';
 
 import { esPlacaValida, limpiarPlaca } from './placa';
 
@@ -76,6 +76,7 @@ export type DatosFilaCarga = Pick<
   | 'color'
   | 'kilometraje'
   | 'aseguradora'
+  | 'aseguradoraClave'
   | 'telefonoAseguradora'
   | 'numeroPoliza'
   | 'vencimientoSeguro'
@@ -420,6 +421,7 @@ export function procesarFilasCarga(
         color: texto(leer(bruto, 'color')),
         kilometraje,
         aseguradora,
+        aseguradoraClave: aseguradora ? claveAseguradora(aseguradora) : '',
         telefonoAseguradora: aseguradora ? telefonoAseguradora : '',
         numeroPoliza,
         vencimientoSeguro: vencimiento ?? '',

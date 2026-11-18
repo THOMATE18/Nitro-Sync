@@ -34,13 +34,14 @@ import {
 
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 import SelectorFecha from '@/components/ui/selector-fecha';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
 
@@ -91,6 +92,9 @@ export default function FormularioMantenimientoScreen() {
 
   const { user } = useAuth();
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const { registros, cargando } = useRegistrosVehiculo<Mantenimiento>(
     'mantenimientos',
@@ -183,7 +187,7 @@ export default function FormularioMantenimientoScreen() {
   if (modo === 'editar' && cargando && !registroOriginal) {
     return (
       <View style={styles.avisoContenedor}>
-        <ActivityIndicator size="large" color={Paleta.primario} />
+        <ActivityIndicator size="large" color={paleta.primario} />
 
         <Text style={styles.avisoTexto}>Cargando mantenimiento...</Text>
       </View>
@@ -408,7 +412,7 @@ export default function FormularioMantenimientoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 36500"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 keyboardType="number-pad"
                 value={kilometraje}
                 onChangeText={(texto) =>
@@ -424,7 +428,7 @@ export default function FormularioMantenimientoScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ej: 180000"
-                placeholderTextColor={Paleta.textoSuave}
+                placeholderTextColor={paleta.textoSuave}
                 keyboardType="number-pad"
                 value={costo}
                 onChangeText={(texto) =>
@@ -459,7 +463,7 @@ export default function FormularioMantenimientoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Cambio de aceite y filtros"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={descripcion}
             onChangeText={setDescripcion}
             maxLength={80}
@@ -470,7 +474,7 @@ export default function FormularioMantenimientoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Mecánica El Rapido"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={taller}
             onChangeText={setTaller}
             maxLength={60}
@@ -481,7 +485,7 @@ export default function FormularioMantenimientoScreen() {
           <TextInput
             style={[styles.input, styles.inputArea]}
             placeholder="Ej: Se recomienda revisar las pastillas en el próximo cambio"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={observaciones}
             onChangeText={setObservaciones}
             multiline
@@ -517,7 +521,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,

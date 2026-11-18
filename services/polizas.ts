@@ -73,16 +73,19 @@ export function suscribirPolizasOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION_POLIZAS),
-      where('orgId', '==', orgId),
-      orderBy('actualizadaEn', 'desc')
-    ),
+    /*
+    Solo se filtra por `orgId` y se ordena en el cliente:
+    `where` + `orderBy` exigiría un índice compuesto que
+    puede no estar desplegado (failed-precondition).
+    */
+    query(collection(db, COLECCION_POLIZAS), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertirPoliza(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) =>
+            convertirPoliza(documento.id, documento.data())
+          )
+          .sort((a, b) => b.actualizadaEn - a.actualizadaEn)
       );
     },
     (error) => onError?.(error)
@@ -97,14 +100,15 @@ export function suscribirPolizasPropietario(
   return onSnapshot(
     query(
       collection(db, COLECCION_POLIZAS),
-      where('propietarioUid', '==', propietarioUid),
-      orderBy('actualizadaEn', 'desc')
+      where('propietarioUid', '==', propietarioUid)
     ),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertirPoliza(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) =>
+            convertirPoliza(documento.id, documento.data())
+          )
+          .sort((a, b) => b.actualizadaEn - a.actualizadaEn)
       );
     },
     (error) => onError?.(error)
@@ -206,16 +210,14 @@ export function suscribirOfertasOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION_OFERTAS),
-      where('orgId', '==', orgId),
-      orderBy('creadaEn', 'desc')
-    ),
+    query(collection(db, COLECCION_OFERTAS), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertirOferta(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) =>
+            convertirOferta(documento.id, documento.data())
+          )
+          .sort((a, b) => b.creadaEn - a.creadaEn)
       );
     },
     (error) => onError?.(error)
@@ -230,14 +232,15 @@ export function suscribirOfertasPropietario(
   return onSnapshot(
     query(
       collection(db, COLECCION_OFERTAS),
-      where('propietarioUid', '==', propietarioUid),
-      orderBy('creadaEn', 'desc')
+      where('propietarioUid', '==', propietarioUid)
     ),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertirOferta(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) =>
+            convertirOferta(documento.id, documento.data())
+          )
+          .sort((a, b) => b.creadaEn - a.creadaEn)
       );
     },
     (error) => onError?.(error)

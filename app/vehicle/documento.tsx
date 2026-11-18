@@ -45,9 +45,9 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 
 import {
   ColoresEstado,
-  Paleta,
   Radios,
   Sombras,
+  type TipoPaleta,
 } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
@@ -55,6 +55,7 @@ import { useAlerta } from '@/components/ui/confirm-dialog';
 import SelectorFecha from '@/components/ui/selector-fecha';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import { useDocumentos } from '@/hooks/use-documentos';
 
@@ -190,6 +191,9 @@ export default function FormularioDocumentoScreen() {
   const { user } = useAuth();
   const alerta = useAlerta();
 
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+
   const { documentos, cargando } = useDocumentos(vehiculoId);
 
   const modo: 'crear' | 'editar' = documentoId ? 'editar' : 'crear';
@@ -260,7 +264,7 @@ export default function FormularioDocumentoScreen() {
   if (modo === 'editar' && cargando && !documentoOriginal) {
     return (
       <View style={styles.avisoContenedor}>
-        <ActivityIndicator size="large" color={Paleta.primario} />
+        <ActivityIndicator size="large" color={paleta.primario} />
 
         <Text style={styles.avisoTexto}>Cargando documento...</Text>
       </View>
@@ -475,7 +479,7 @@ export default function FormularioDocumentoScreen() {
           <TextInput
             style={styles.input}
             placeholder={info.nombrePlaceholder}
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={descripcion}
             onChangeText={setDescripcion}
             maxLength={60}
@@ -486,7 +490,7 @@ export default function FormularioDocumentoScreen() {
           <TextInput
             style={styles.input}
             placeholder={info.numeroPlaceholder}
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             autoCapitalize="characters"
             value={numero}
             onChangeText={setNumero}
@@ -537,7 +541,7 @@ export default function FormularioDocumentoScreen() {
               accessibilityRole="button"
               accessibilityLabel="Completar el vencimiento según la vigencia típica"
             >
-              <Ionicons name="flash-outline" size={16} color={Paleta.primario} />
+              <Ionicons name="flash-outline" size={16} color={paleta.primario} />
 
               <Text style={styles.botonVigenciaTexto}>
                 Completar {info.mesesVigencia} meses desde la expedición
@@ -602,7 +606,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,

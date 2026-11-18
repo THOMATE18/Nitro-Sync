@@ -43,7 +43,8 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, sombraDura } from '@/constants/theme';
+import { Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
+import { useTema } from '@/context/TemaContext';
 
 /* -------------------------------------------------------
    TIPOS
@@ -82,41 +83,57 @@ export interface BotonNitroProps {
    COLORES POR VARIANTE
    ------------------------------------------------------- */
 
-const COLORES: Record<
-  VarianteBoton,
-  { fondo: string; texto: string; borde: string; sombra: string }
-> = {
-  primario: {
-    fondo: Paleta.acento,
-    texto: Paleta.tinta,
-    borde: Paleta.tinta,
-    sombra: Paleta.tinta,
-  },
-  oscuro: {
-    fondo: Paleta.tinta,
-    texto: Paleta.acento,
-    borde: Paleta.tinta,
-    sombra: Paleta.tinta,
-  },
-  secundario: {
-    fondo: Paleta.tarjeta,
-    texto: Paleta.tinta,
-    borde: Paleta.tinta,
-    sombra: Paleta.tinta,
-  },
-  peligro: {
-    fondo: Paleta.coralClaro,
-    texto: '#B3123E',
-    borde: '#B3123E',
-    sombra: Paleta.tinta,
-  },
-  fantasma: {
-    fondo: 'transparent',
-    texto: Paleta.primario,
-    borde: 'transparent',
-    sombra: 'transparent',
-  },
-};
+/*
+Los colores dependen del tema vigente, así que se calculan
+en cada render a partir de la paleta.
+*/
+function coloresDe(
+  Paleta: TipoPaleta,
+  variante: VarianteBoton
+): { fondo: string; texto: string; borde: string; sombra: string } {
+  switch (variante) {
+    case 'oscuro':
+      return {
+        fondo: Paleta.tinta,
+        texto: Paleta.acento,
+        borde: Paleta.bordeDuro,
+        sombra: Paleta.bordeDuro,
+      };
+
+    case 'secundario':
+      return {
+        fondo: Paleta.tarjeta,
+        texto: Paleta.texto,
+        borde: Paleta.bordeDuro,
+        sombra: Paleta.bordeDuro,
+      };
+
+    case 'peligro':
+      return {
+        fondo: Paleta.peligroFondo,
+        texto: Paleta.peligro,
+        borde: Paleta.peligro,
+        sombra: Paleta.bordeDuro,
+      };
+
+    case 'fantasma':
+      return {
+        fondo: 'transparent',
+        texto: Paleta.primario,
+        borde: 'transparent',
+        sombra: 'transparent',
+      };
+
+    case 'primario':
+    default:
+      return {
+        fondo: Paleta.acento,
+        texto: Paleta.tinta,
+        borde: Paleta.bordeDuro,
+        sombra: Paleta.bordeDuro,
+      };
+  }
+}
 
 /* -------------------------------------------------------
    MEDIDAS POR TAMAÑO
@@ -148,7 +165,8 @@ export default function BotonNitro({
   style,
   accessibilityLabel,
 }: BotonNitroProps) {
-  const colores = COLORES[variante];
+  const { paleta } = useTema();
+  const colores = coloresDe(paleta, variante);
   const medidas = MEDIDAS[tamano];
 
   const inactivo = deshabilitado || cargando;

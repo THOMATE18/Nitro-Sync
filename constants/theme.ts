@@ -51,6 +51,8 @@ export const Paleta = {
 
   // Tinta (bordes duros y textos sobre lima)
   tinta: '#0B1030',
+  /** Borde "duro" tipo sticker (cambia con el tema). */
+  bordeDuro: '#0B1030',
   blanco: '#FFFFFF',
 
   // Marca / acción
@@ -70,7 +72,81 @@ export const Paleta = {
   advertenciaFondo: '#FEF0C7',
   peligro: '#E11D48',
   peligroFondo: '#FFE3E3',
+
+  /*
+  Texto legible SOBRE los fondos de estado (píldoras, avisos,
+  banners). En claro son tonos oscuros; en oscuro se aclaran
+  para mantener el contraste mínimo de 4.5:1.
+  */
+  textoExito: '#067A55',
+  textoAdvertencia: '#9A5B00',
+  textoPeligro: '#B3123E',
+  /** Texto legible sobre `acentoClaro`. */
+  textoAcento: '#3E5A08',
 } as const;
+
+/**
+ * Tipo de la paleta. Es un mapa con las MISMAS claves que
+ * `Paleta` pero con valores de color libres, para que
+ * `PaletaOscura` pueda declararse sin chocar con los tipos
+ * literales de `Paleta` (`as const`).
+ */
+export type TipoPaleta = { [Clave in keyof typeof Paleta]: string };
+
+/* -------------------------------------------------------
+   PALETA OSCURA
+
+   Misma estructura que `Paleta` pero con superficies
+   oscuras y textos claros. Los acentos de marca (lima y
+   azul) se aclaran lo justo para mantener contraste sobre
+   fondo oscuro. `tinta` se mantiene oscura porque se usa
+   como texto sobre el lima y como fondo de botones oscuros.
+   ------------------------------------------------------- */
+
+export const PaletaOscura: TipoPaleta = {
+  // Fondo y superficies
+  fondo: '#0A0F26',
+  fondoAlterno: '#10173A',
+  tarjeta: '#151B42',
+  /* Bordes y separadores con contraste >= 3:1 sobre tarjeta/fondo. */
+  borde: '#5A6BB5',
+
+  // Texto
+  texto: '#F2F4FF',
+  textoSecundario: '#AEB7DA',
+  textoSuave: '#8B95BD',
+
+  // Tinta (se mantiene oscura: texto sobre lima / fondos oscuros)
+  tinta: '#0B1030',
+  /** Borde "duro" claro para que resalte sobre fondo oscuro. */
+  bordeDuro: '#C9D2F5',
+  blanco: '#FFFFFF',
+
+  // Marca / acción
+  primario: '#6E8BFF',
+  /* Texto de chips sobre `primarioClaro` (contraste >= 4.5:1). */
+  primarioOscuro: '#93A8FF',
+  primarioClaro: '#1B2551',
+  acento: '#C8FF3D',
+  acentoOscuro: '#9BE000',
+  acentoClaro: '#243012',
+  coral: '#FF7A80',
+  coralClaro: '#3A1F26',
+
+  // Estados
+  exito: '#4ADE9E',
+  exitoFondo: '#0F3324',
+  advertencia: '#F6B23E',
+  advertenciaFondo: '#33260A',
+  peligro: '#FF7085',
+  peligroFondo: '#3A1420',
+
+  /* Texto legible sobre los fondos de estado (oscuro: tonos claros). */
+  textoExito: '#4ADE9E',
+  textoAdvertencia: '#F6B23E',
+  textoPeligro: '#FF7085',
+  textoAcento: '#C8FF3D',
+};
 
 /* -------------------------------------------------------
    GRADIENTES (expo-linear-gradient)
@@ -282,15 +358,15 @@ export const Colors = {
     tabIconSelected: Paleta.primario,
   },
   dark: {
-    text: Paleta.blanco,
-    background: Paleta.tinta,
-    card: '#151B42',
-    border: '#26305F',
-    primary: Paleta.acento,
-    tint: Paleta.acento,
-    icon: '#98A2C8',
-    tabIconDefault: '#98A2C8',
-    tabIconSelected: Paleta.acento,
+    text: PaletaOscura.texto,
+    background: PaletaOscura.fondo,
+    card: PaletaOscura.tarjeta,
+    border: PaletaOscura.borde,
+    primary: PaletaOscura.acento,
+    tint: PaletaOscura.acento,
+    icon: PaletaOscura.textoSuave,
+    tabIconDefault: PaletaOscura.textoSuave,
+    tabIconSelected: PaletaOscura.acento,
   },
 } as const;
 

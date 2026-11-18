@@ -6,8 +6,11 @@ NITRO SYNC - NAVEGACIÓN DE AUTENTICACIÓN
 Este Stack agrupa las pantallas que se muestran
 CUANDO NO EXISTE SESIÓN:
 
-  /login    -> Inicio de sesión
-  /register -> Crear cuenta
+  /login       -> Pantalla de acceso (usuario / aseguradora)
+  /register    -> Crear cuenta
+  /recuperar   -> Pedir enlace de recuperación por correo
+  /restablecer -> Crear contraseña nueva con el código
+  /aseguradora -> (heredada) ingreso directo de aseguradora
 
 El grupo (auth) es protegido en app/_layout.tsx:
 
@@ -31,6 +34,16 @@ export default function AuthLayout() {
       <Stack.Screen
         name="aseguradora"
         options={{ title: 'Ingreso de aseguradora' }}
+      />
+
+      <Stack.Screen
+        name="recuperar"
+        options={{ title: 'Recuperar contraseña' }}
+      />
+
+      <Stack.Screen
+        name="restablecer"
+        options={{ title: 'Nueva contraseña' }}
       />
     </Stack>
   );

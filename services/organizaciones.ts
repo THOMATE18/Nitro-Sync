@@ -28,6 +28,8 @@ import {
 
 import { db } from '@/firebaseConfig';
 
+import { claveAseguradora } from '@/data/aseguradoras';
+
 import type { EstadoOrganizacion, Organizacion } from '@/types/negocio';
 
 const COLECCION = 'organizations';
@@ -47,6 +49,7 @@ function convertir(id: string, datos: DocumentData): Organizacion {
     accesoHabilitado: datos.accesoHabilitado !== false,
     creadaEn: datos.creadaEn ?? null,
     actualizadaEn: datos.actualizadaEn ?? null,
+    aseguradoraClave: datos.aseguradoraClave ?? null,
   };
 }
 
@@ -90,7 +93,9 @@ export function suscribirOrganizacion(
 
 export async function actualizarOrganizacion(
   orgId: string,
-  cambios: Partial<Pick<Organizacion, 'estado' | 'accesoHabilitado'>>
+  cambios: Partial<
+    Pick<Organizacion, 'estado' | 'accesoHabilitado' | 'aseguradoraClave'>
+  >
 ): Promise<void> {
   await updateDoc(organizacionRef(orgId), {
     ...cambios,
@@ -124,6 +129,7 @@ export async function crearOrganizacion(datos: NuevaOrganizacion): Promise<strin
     accesoHabilitado: true,
     creadaEn: marca,
     actualizadaEn: marca,
+    aseguradoraClave: claveAseguradora(datos.nombre) || null,
   });
 
   return datos.slug;

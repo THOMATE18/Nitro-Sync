@@ -18,11 +18,12 @@ import { useAlerta } from '@/components/ui/confirm-dialog';
 import ImagenVehiculo from '@/components/ui/imagen-vehiculo';
 import {
   ColoresEstado,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import { ASEGURADORAS, buscarAseguradora } from '@/data/aseguradoras';
 import { guardarTelefono, suscribirPerfil } from '@/services/perfil';
@@ -45,6 +46,9 @@ export default function MisSegurosScreen() {
   const { user } = useAuth();
   const { vehiculos, cargando } = useVehiculos();
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [telefono, setTelefono] = useState('');
@@ -206,7 +210,7 @@ export default function MisSegurosScreen() {
                     <View
                       style={[
                         styles.aseguradoraPill,
-                        { backgroundColor: marca?.color ?? Paleta.primario },
+                        { backgroundColor: marca?.color ?? paleta.primario },
                       ]}
                     >
                       <Text
@@ -220,7 +224,12 @@ export default function MisSegurosScreen() {
                     </View>
                   ) : (
                     <View style={[styles.aseguradoraPill, styles.sinSeguroPill]}>
-                      <Text style={[styles.aseguradoraTexto, { color: '#B3123E' }]}>
+                      <Text
+                        style={[
+                          styles.aseguradoraTexto,
+                          { color: paleta.textoPeligro },
+                        ]}
+                      >
                         Sin seguro
                       </Text>
                     </View>
@@ -253,7 +262,7 @@ export default function MisSegurosScreen() {
 
               {pendiente && (
                 <View style={styles.aviso}>
-                  <Ionicons name="time-outline" size={16} color={Paleta.advertencia} />
+                  <Ionicons name="time-outline" size={16} color={paleta.advertencia} />
                   <Text style={styles.avisoTexto}>
                     Solicitud de {solicitud?.tipo.toLowerCase()} enviada. Esperando al agente.
                   </Text>
@@ -262,8 +271,8 @@ export default function MisSegurosScreen() {
 
               {atendida && (
                 <View style={[styles.aviso, styles.avisoExito]}>
-                  <Ionicons name="checkmark-circle" size={16} color={Paleta.exito} />
-                  <Text style={[styles.avisoTexto, { color: '#067A55' }]}>
+                  <Ionicons name="checkmark-circle" size={16} color={paleta.exito} />
+                  <Text style={[styles.avisoTexto, { color: paleta.textoExito }]}>
                     Tu última solicitud fue atendida.
                   </Text>
                 </View>
@@ -345,7 +354,7 @@ export default function MisSegurosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { padding: 16, gap: 16, paddingBottom: 40 },
   vacio: { textAlign: 'center', color: Paleta.textoSecundario, marginTop: 20 },
@@ -353,7 +362,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 16,
     gap: 10,
     ...sombraDura(4, 4),
@@ -405,7 +414,12 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   avisoExito: { backgroundColor: Paleta.exitoFondo },
-  avisoTexto: { flex: 1, fontSize: 12, fontWeight: '700', color: '#9A5B00' },
+  avisoTexto: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Paleta.textoAdvertencia,
+  },
   formulario: { gap: 10 },
   etiqueta: { fontSize: 13, fontWeight: '700', color: Paleta.textoSecundario },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -417,7 +431,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Paleta.borde,
   },
-  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.tinta },
+  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.bordeDuro },
   chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
   chipTextoActivo: { color: '#FFFFFF' },
 });

@@ -41,20 +41,23 @@ import { auth } from '../../firebaseConfig';
 import { resolverSesion } from '@/services/sesion';
 import {
   Gradientes,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import BotonNitro from '@/components/ui/boton-nitro';
+import CampoContrasena from '@/components/ui/campo-contrasena';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 
 export default function LoginAseguradoraScreen() {
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [ver, setVer] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -139,7 +142,7 @@ export default function LoginAseguradoraScreen() {
           </Text>
 
           <View style={styles.logoCaja}>
-            <Ionicons name="business" size={30} color={Paleta.tinta} />
+            <Ionicons name="business" size={30} color={paleta.tinta} />
           </View>
 
           <Text style={styles.titulo}>Portal de aseguradoras</Text>
@@ -156,7 +159,7 @@ export default function LoginAseguradoraScreen() {
 
           <Text style={styles.etiqueta}>Correo electrónico</Text>
           <View style={styles.inputCaja}>
-            <Ionicons name="mail-outline" size={18} color={Paleta.textoSuave} />
+            <Ionicons name="mail-outline" size={18} color={paleta.textoSuave} />
             <TextInput
               style={styles.input}
               placeholder="aseguradora@gmail.com"
@@ -170,27 +173,11 @@ export default function LoginAseguradoraScreen() {
           </View>
 
           <Text style={styles.etiqueta}>Contraseña</Text>
-          <View style={styles.inputCaja}>
-            <Ionicons
-              name="lock-closed-outline"
-              size={18}
-              color={Paleta.textoSuave}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Contraseña temporal"
-              placeholderTextColor="#94A3B8"
-              secureTextEntry={!ver}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Ionicons
-              name={ver ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={Paleta.textoSuave}
-              onPress={() => setVer((valor) => !valor)}
-            />
-          </View>
+          <CampoContrasena
+            placeholder="Contraseña temporal"
+            value={password}
+            onChangeText={setPassword}
+          />
 
           <BotonNitro
             titulo="Ingresar"
@@ -215,7 +202,7 @@ export default function LoginAseguradoraScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Paleta.fondo },
   scroll: { flexGrow: 1 },
   hero: {
@@ -241,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -266,7 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.grande,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 24,
     marginHorizontal: 18,
     marginTop: -40,

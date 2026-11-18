@@ -15,10 +15,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
-import { ColoresTipo, Gradientes, Paleta, Radios, sombraDura } from '@/constants/theme';
+import { ColoresTipo, Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { marcarSolicitudAtendida, suscribirSolicitudes } from '@/services/solicitudes';
-import { urlWhatsApp } from '@/utils/contacto';
+import { enlaceWhatsApp } from '@/utils/contacto';
 import { describirErrorFirestore } from '@/utils/errorFirestore';
 
 import type { Solicitud } from '@/types/models';
@@ -27,6 +28,8 @@ function BandejaSolicitudes() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -63,7 +66,9 @@ function BandejaSolicitudes() {
   const whatsapp = (solicitud: Solicitud) => {
     const mensaje = `Hola, soy tu agente de seguros en Nitro Sync. Recibí tu solicitud de ${solicitud.tipo.toLowerCase()} para tu ${solicitud.vehiculoNombre} (${solicitud.placa}). ¿Hablamos?`;
 
-    Linking.openURL(urlWhatsApp(solicitud.telefono, mensaje));
+    const enlace = enlaceWhatsApp(solicitud.telefono, mensaje);
+
+    if (enlace) Linking.openURL(enlace);
   };
 
   const atender = async (solicitud: Solicitud) => {
@@ -100,7 +105,7 @@ function BandejaSolicitudes() {
       {cargando && (
         <ActivityIndicator
           size="large"
-          color={Paleta.primario}
+          color={paleta.primario}
           style={styles.cargando}
         />
       )}
@@ -134,7 +139,11 @@ function BandejaSolicitudes() {
                 <Text
                   style={[
                     styles.pillTexto,
-                    { color: pendiente ? '#9A5B00' : '#067A55' },
+                    {
+                      color: pendiente
+                        ? paleta.textoAdvertencia
+                        : paleta.textoExito,
+                    },
                   ]}
                 >
                   {solicitud.estado}
@@ -155,7 +164,7 @@ function BandejaSolicitudes() {
               </View>
 
               <View style={[styles.pill, styles.pillTipo]}>
-                <Text style={[styles.pillTexto, { color: Paleta.primarioOscuro }]}>
+                <Text style={[styles.pillTexto, { color: paleta.primarioOscuro }]}>
                   {solicitud.tipo}
                 </Text>
               </View>
@@ -218,7 +227,7 @@ export default function SolicitudesRoute() {
   return <BandejaSolicitudes />;
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 40 },
   hero: {
@@ -241,7 +250,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: Radios.suave,
     backgroundColor: Paleta.peligroFondo,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     fontSize: 13,
   },
   vacio: {
@@ -254,7 +263,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 14,

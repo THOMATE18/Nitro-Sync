@@ -29,7 +29,6 @@ import {
   collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
   updateDoc,
   where,
@@ -39,6 +38,8 @@ import {
 import { Linking } from 'react-native';
 
 import { db } from '@/firebaseConfig';
+
+import { enlaceWhatsApp } from '@/utils/contacto';
 
 import {
   idNotificacion,
@@ -53,24 +54,17 @@ const COLECCION = 'notificationLogs';
    ENLACES wa.me
 ----------------------------------------------- */
 
-/** Deja solo dígitos (wa.me no acepta espacios ni guiones). */
-export function numeroWhatsapp(numero: string | null | undefined): string {
-  return (numero ?? '').replace(/[^\d]/g, '');
-}
-
 /**
  * Construye un enlace `wa.me` con el mensaje prellenado.
- * Devuelve null si el número no es válido.
+ * Delega en el constructor ÚNICO `enlaceWhatsApp()` de
+ * `utils/contacto.ts`, que antepone `57` a los celulares de
+ * 10 dígitos. Devuelve null si el número no es válido.
  */
 export function construirEnlaceWhatsapp(
   numero: string | null | undefined,
   mensaje: string
 ): string | null {
-  const destino = numeroWhatsapp(numero);
-
-  if (destino.length < 8) return null;
-
-  return `https://wa.me/${destino}?text=${encodeURIComponent(mensaje)}`;
+  return enlaceWhatsApp(numero, mensaje);
 }
 
 /** Abre el enlace en WhatsApp (o el navegador en web). */
@@ -210,16 +204,12 @@ export function suscribirAvisosOrg(
   onError?: (error: Error) => void
 ): () => void {
   return onSnapshot(
-    query(
-      collection(db, COLECCION),
-      where('orgId', '==', orgId),
-      orderBy('creadoEn', 'desc')
-    ),
+    query(collection(db, COLECCION), where('orgId', '==', orgId)),
     (snapshot) => {
       onData(
-        snapshot.docs.map((documento) =>
-          convertir(documento.id, documento.data())
-        )
+        snapshot.docs
+          .map((documento) => convertir(documento.id, documento.data()))
+          .sort((a, b) => b.creadoEn - a.creadoEn)
       );
     },
     (error) => onError?.(error)

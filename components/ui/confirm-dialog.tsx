@@ -56,7 +56,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Gradientes, Paleta, Radios, Sombras } from '@/constants/theme';
+import { Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 /* -------------------------------------------------------
    TIPOS
@@ -114,24 +115,24 @@ export function useAlerta(): Alertar {
    APARIENCIA SEGÚN EL TIPO DE AVISO
    ------------------------------------------------------- */
 
-function aparienciaAlerta(tipo: TipoAlerta) {
+function aparienciaAlerta(Paleta: TipoPaleta, tipo: TipoAlerta) {
   switch (tipo) {
     case 'exito':
       return {
         icono: 'checkmark-circle-outline' as const,
-        color: '#047857',
+        color: Paleta.textoExito,
         fondo: Paleta.exitoFondo,
       };
     case 'error':
       return {
         icono: 'close-circle-outline' as const,
-        color: '#B91C1C',
+        color: Paleta.textoPeligro,
         fondo: Paleta.peligroFondo,
       };
     case 'advertencia':
       return {
         icono: 'alert-circle-outline' as const,
-        color: '#B45309',
+        color: Paleta.textoAdvertencia,
         fondo: Paleta.advertenciaFondo,
       };
     default:
@@ -164,6 +165,9 @@ export function ConfirmProvider({
   const [visible, setVisible] = useState(false);
   const resolverRef = useRef<((valor: boolean) => void) | null>(null);
   const limpiezaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   /* Limpia cualquier temporizador pendiente al desmontar. */
   useEffect(() => {
@@ -239,7 +243,7 @@ export function ConfirmProvider({
   const peligro = opcionesConfirmar?.peligro ?? false;
 
   const apariencia = opcionesAlerta
-    ? aparienciaAlerta(opcionesAlerta.tipo ?? 'info')
+    ? aparienciaAlerta(paleta, opcionesAlerta.tipo ?? 'info')
     : null;
 
   const icono =
@@ -251,13 +255,13 @@ export function ConfirmProvider({
   const colorIcono = esConfirmar
     ? peligro
       ? '#B91C1C'
-      : Paleta.primario
+      : paleta.primario
     : apariencia!.color;
 
   const fondoIcono = esConfirmar
     ? peligro
-      ? Paleta.peligroFondo
-      : Paleta.primarioClaro
+      ? paleta.peligroFondo
+      : paleta.primarioClaro
     : apariencia!.fondo;
 
   const titulo = esConfirmar ? opcionesConfirmar?.titulo : opcionesAlerta?.titulo;
@@ -372,7 +376,7 @@ export function ConfirmProvider({
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   fondo: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',

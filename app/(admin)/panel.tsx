@@ -25,8 +25,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { suscribirOrganizaciones } from '@/services/organizaciones';
@@ -90,6 +91,8 @@ function Metrica({
   icono: keyof typeof Ionicons.glyphMap;
   color: string;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={styles.metrica}>
       <Ionicons name={icono} size={20} color={color} />
@@ -102,6 +105,8 @@ function Metrica({
 export default function PanelPlataforma() {
   const { user, logout } = useAuth();
   const confirmar = useConfirm();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [organizaciones, setOrganizaciones] = useState<Organizacion[]>([]);
   const [vinculos, setVinculos] = useState<VinculoAseguradora[]>([]);
@@ -174,19 +179,19 @@ export default function PanelPlataforma() {
           valor={`${activas}/${organizaciones.length}`}
           etiqueta="Activas"
           icono="business"
-          color={Paleta.primario}
+          color={paleta.primario}
         />
         <Metrica
           valor={String(vinculos.length)}
           etiqueta="Vínculos"
           icono="link"
-          color={Paleta.exito}
+          color={paleta.exito}
         />
         <Metrica
           valor={String(polizas.length)}
           etiqueta="Pólizas"
           icono="document-text"
-          color={Paleta.advertencia}
+          color={paleta.advertencia}
         />
       </View>
 
@@ -208,7 +213,7 @@ export default function PanelPlataforma() {
           <Text
             style={[
               styles.filaValor,
-              { color: enMora > 0 ? Paleta.peligro : Paleta.exito },
+              { color: enMora > 0 ? paleta.peligro : paleta.exito },
             ]}
           >
             {enMora}
@@ -231,7 +236,7 @@ export default function PanelPlataforma() {
             onPress={() => router.push(atajo.ruta as never)}
           >
             <View style={styles.atajoIcono}>
-              <Ionicons name={atajo.icono} size={20} color={Paleta.tinta} />
+              <Ionicons name={atajo.icono} size={20} color={paleta.tinta} />
             </View>
 
             <View style={styles.atajoTextos}>
@@ -242,113 +247,114 @@ export default function PanelPlataforma() {
             <Ionicons
               name="chevron-forward"
               size={20}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
             />
           </Pressable>
         ))}
       </View>
 
       <Pressable style={styles.salir} onPress={cerrarSesion}>
-        <Ionicons name="log-out-outline" size={18} color={Paleta.peligro} />
+        <Ionicons name="log-out-outline" size={18} color={paleta.peligro} />
         <Text style={styles.salirTexto}>Cerrar sesión</Text>
       </Pressable>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: Paleta.fondo },
-  contenido: { paddingBottom: 44 },
-  metricas: {
-    flexDirection: 'row',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: -28,
-  },
-  metrica: {
-    flex: 1,
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.suave,
-    borderWidth: 2,
-    borderColor: Paleta.tinta,
-    paddingVertical: 10,
-    alignItems: 'center',
-    gap: 2,
-  },
-  metricaValor: { fontSize: 18, fontWeight: '900', color: Paleta.texto },
-  metricaEtiqueta: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Paleta.textoSecundario,
-  },
-  tarjeta: {
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 18,
-    marginHorizontal: 16,
-    marginTop: 16,
-    gap: 10,
-    ...Sombras.suave,
-  },
-  tarjetaTitulo: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Paleta.texto,
-    marginBottom: 2,
-  },
-  fila: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  filaEtiqueta: {
-    fontSize: 13,
-    color: Paleta.textoSecundario,
-    fontWeight: '600',
-  },
-  filaValor: { fontSize: 13, color: Paleta.texto, fontWeight: '800' },
-  nota: { fontSize: 12, color: Paleta.textoSuave, lineHeight: 17 },
-  seccionTitulo: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: Paleta.texto,
-    marginHorizontal: 16,
-    marginTop: 24,
-  },
-  atajos: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  atajo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 14,
-    ...Sombras.suave,
-  },
-  atajoIcono: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: Paleta.acento,
-    borderWidth: 2,
-    borderColor: Paleta.tinta,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  atajoTextos: { flex: 1 },
-  atajoTitulo: { fontSize: 14.5, fontWeight: '900', color: Paleta.texto },
-  atajoDescripcion: {
-    fontSize: 12,
-    color: Paleta.textoSecundario,
-    marginTop: 2,
-  },
-  salir: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: Radios.suave,
-    borderWidth: 1.5,
-    borderColor: Paleta.peligro,
-  },
-  salirTexto: { fontSize: 14, fontWeight: '800', color: Paleta.peligro },
-});
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    pantalla: { flex: 1, backgroundColor: Paleta.fondo },
+    contenido: { paddingBottom: 44 },
+    metricas: {
+      flexDirection: 'row',
+      gap: 8,
+      marginHorizontal: 16,
+      marginTop: -28,
+    },
+    metrica: {
+      flex: 1,
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.suave,
+      borderWidth: 2,
+      borderColor: Paleta.bordeDuro,
+      paddingVertical: 10,
+      alignItems: 'center',
+      gap: 2,
+    },
+    metricaValor: { fontSize: 18, fontWeight: '900', color: Paleta.texto },
+    metricaEtiqueta: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: Paleta.textoSecundario,
+    },
+    tarjeta: {
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 18,
+      marginHorizontal: 16,
+      marginTop: 16,
+      gap: 10,
+      ...Sombras.suave,
+    },
+    tarjetaTitulo: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: Paleta.texto,
+      marginBottom: 2,
+    },
+    fila: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+    filaEtiqueta: {
+      fontSize: 13,
+      color: Paleta.textoSecundario,
+      fontWeight: '600',
+    },
+    filaValor: { fontSize: 13, color: Paleta.texto, fontWeight: '800' },
+    nota: { fontSize: 12, color: Paleta.textoSuave, lineHeight: 17 },
+    seccionTitulo: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: Paleta.texto,
+      marginHorizontal: 16,
+      marginTop: 24,
+    },
+    atajos: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+    atajo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 14,
+      ...Sombras.suave,
+    },
+    atajoIcono: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: Paleta.acento,
+      borderWidth: 2,
+      borderColor: Paleta.bordeDuro,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    atajoTextos: { flex: 1 },
+    atajoTitulo: { fontSize: 14.5, fontWeight: '900', color: Paleta.texto },
+    atajoDescripcion: {
+      fontSize: 12,
+      color: Paleta.textoSecundario,
+      marginTop: 2,
+    },
+    salir: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginHorizontal: 16,
+      marginTop: 24,
+      paddingVertical: 14,
+      borderRadius: Radios.suave,
+      borderWidth: 1.5,
+      borderColor: Paleta.peligro,
+    },
+    salirTexto: { fontSize: 14, fontWeight: '800', color: Paleta.peligro },
+  });

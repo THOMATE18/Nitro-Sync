@@ -39,7 +39,8 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import { esFechaISOValida, hoyISO } from '@/utils/fechas';
 
@@ -137,6 +138,8 @@ export default function SelectorFecha({
   deshabilitado = false,
 }: SelectorFechaProps) {
   const [abierto, setAbierto] = useState(false);
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   /* Mes visible en el calendario. */
 
@@ -274,7 +277,7 @@ export default function SelectorFecha({
         <Ionicons
           name="calendar-outline"
           size={20}
-          color={deshabilitado ? Paleta.textoSuave : Paleta.primario}
+          color={deshabilitado ? paleta.textoSuave : paleta.primario}
         />
       </Pressable>
 
@@ -310,7 +313,7 @@ export default function SelectorFecha({
                 <Ionicons
                   name="chevron-back"
                   size={22}
-                  color={puedeRetroceder() ? Paleta.primario : Paleta.textoSuave}
+                  color={puedeRetroceder() ? paleta.primario : paleta.textoSuave}
                 />
               </TouchableOpacity>
 
@@ -328,7 +331,7 @@ export default function SelectorFecha({
                 <Ionicons
                   name="chevron-forward"
                   size={22}
-                  color={puedeAvanzar() ? Paleta.primario : Paleta.textoSuave}
+                  color={puedeAvanzar() ? paleta.primario : paleta.textoSuave}
                 />
               </TouchableOpacity>
             </View>
@@ -406,7 +409,7 @@ export default function SelectorFecha({
                 <Ionicons
                   name="today-outline"
                   size={18}
-                  color={dentroDeLimites(hoy) ? Paleta.primario : Paleta.textoSuave}
+                  color={dentroDeLimites(hoy) ? paleta.primario : paleta.textoSuave}
                 />
 
                 <Text
@@ -439,7 +442,7 @@ export default function SelectorFecha({
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     width: '100%',
   },

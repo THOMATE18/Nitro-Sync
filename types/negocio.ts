@@ -68,6 +68,16 @@ export interface Organizacion {
   accesoHabilitado: boolean;
   creadaEn: string | null;
   actualizadaEn: string | null;
+  /*
+  Clave normalizada de la aseguradora (ver
+  `data/aseguradoras.ts` -> `claveAseguradora`). La asigna el
+  super_admin y es la que usan las reglas de Firestore para
+  permitir la lectura SOLO de los vehículos de su aseguradora:
+
+    resource.data.aseguradoraClave ==
+      get(organizations/$(miOrg())).data.aseguradoraClave
+  */
+  aseguradoraClave: string | null;
 }
 
 export const ETIQUETA_ESTADO_ORG: Record<EstadoOrganizacion, string> = {
@@ -123,6 +133,8 @@ export interface VinculoAseguradora {
   propietarioUid: string;
   propietarioNombre: string | null;
   propietarioTelefono: string | null;
+  /** Correo del propietario (solo si autorizó compartirlo). */
+  propietarioCorreo: string | null;
   orgId: string;
   producto: string;
   placa: string;
@@ -270,8 +282,14 @@ export interface Pago {
    NOTIFICACIONES (WHATSAPP)
 ----------------------------------------------- */
 
-export type CanalNotificacion = 'whatsapp' | 'local';
+export type CanalNotificacion = 'whatsapp' | 'local' | 'email';
 export type EstadoNotificacion = 'pendiente' | 'manual' | 'enviado' | 'fallido' | 'omitido';
+
+export const ETIQUETA_CANAL: Record<CanalNotificacion, string> = {
+  whatsapp: 'WhatsApp',
+  email: 'Correo',
+  local: 'Local',
+};
 
 export interface RegistroNotificacion {
   id: string;

@@ -120,8 +120,31 @@ service cloud.firestore {
       allow read, write: if autenticado() && request.auth.uid == uid;
     }
 
+    /*
+    VEHÍCULOS (collection group).
+
+    Además del super_admin, la ASEGURADORA ACTIVA puede leer un
+    vehículo SOLO si la clave de su aseguradora coincide con la
+    de su organización:
+
+      resource.data.aseguradoraClave ==
+        get(organizations/$(miOrg())).data.aseguradoraClave
+
+    Las reglas NO son filtros: por eso las consultas del panel
+    incluyen SIEMPRE
+
+      where('aseguradoraClave', '==', claveDeMiOrganizacion)
+
+    El get() apunta a un documento fijo (la organización del
+    token), así que se resuelve en una sola lectura. Un vehículo
+    sin `aseguradoraClave` (sin seguro) queda fuera.
+    */
     match /{ruta=**}/vehiculos/{vehiculoId} {
-      allow read: if esSuper();
+      allow read: if esSuper()
+        || (aseguradoraActiva()
+          && resource.data.aseguradoraClave is string
+          && resource.data.aseguradoraClave != ''
+          && resource.data.aseguradoraClave == get(/databases/$(database)/documents/organizations/$(miOrg())).data.aseguradoraClave);
 
       allow update: if esSuper()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -130,7 +153,9 @@ service cloud.firestore {
           'numeroPoliza',
           'vencimientoSeguro',
           'seguroAsignadoPor',
-          'seguroAsignadoFecha'
+          'seguroAsignadoFecha',
+          'aseguradoraClave',
+          'contactoPropietario'
         ]);
     }
 

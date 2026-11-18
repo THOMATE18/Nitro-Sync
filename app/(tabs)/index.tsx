@@ -53,13 +53,14 @@ import {
   ColoresEstado,
   ColoresTipo,
   Gradientes,
-  Paleta,
   Radios,
   Sombras,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
 import BotonNitro from '@/components/ui/boton-nitro';
@@ -104,6 +105,8 @@ export default function HomeScreen() {
   const { vehiculos, cargando, error } = useVehiculos();
   const confirmar = useConfirm();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   /* -------------------------------------------------
      PRÓXIMOS VENCIMIENTOS (documentos reales)
@@ -257,7 +260,7 @@ export default function HomeScreen() {
           <Ionicons
             name="speedometer-outline"
             size={13}
-            color={Paleta.primario}
+            color={paleta.primario}
           />
 
           <Text style={styles.vehicleKm}>
@@ -267,7 +270,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.arrowCircle}>
-        <Ionicons name="chevron-forward" size={18} color={Paleta.tinta} />
+        <Ionicons name="chevron-forward" size={18} color={paleta.tinta} />
       </View>
     </TouchableOpacity>
   );
@@ -333,7 +336,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Cerrar sesión"
               >
-                <Ionicons name="log-out-outline" size={20} color={Paleta.tinta} />
+                <Ionicons name="log-out-outline" size={20} color={paleta.tinta} />
               </TouchableOpacity>
             </View>
           </View>
@@ -342,7 +345,7 @@ export default function HomeScreen() {
 
           <View style={styles.heroChips}>
             <View style={styles.heroChip}>
-              <Ionicons name="car-sport" size={14} color={Paleta.acento} />
+              <Ionicons name="car-sport" size={14} color={paleta.acento} />
               <Text style={styles.heroChipTexto}>
                 {vehiculos.length}{' '}
                 {vehiculos.length === 1 ? 'vehículo' : 'vehículos'}
@@ -350,7 +353,7 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.heroChip}>
-              <Ionicons name="navigate" size={14} color={Paleta.acento} />
+              <Ionicons name="navigate" size={14} color={paleta.acento} />
               <Text style={styles.heroChipTexto}>
                 {formatoKm(kilometrajeTotal)}
               </Text>
@@ -363,14 +366,14 @@ export default function HomeScreen() {
             <Ionicons
               name="search"
               size={18}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
               style={styles.searchIcon}
             />
 
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar placa, marca o modelo..."
-              placeholderTextColor={Paleta.textoSuave}
+              placeholderTextColor={paleta.textoSuave}
               value={search}
               onChangeText={setSearch}
               returnKeyType="search"
@@ -387,7 +390,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Buscar"
             >
-              <Ionicons name="arrow-forward" size={18} color={Paleta.tinta} />
+              <Ionicons name="arrow-forward" size={18} color={paleta.tinta} />
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -449,7 +452,7 @@ export default function HomeScreen() {
                 <Ionicons
                   name="search-outline"
                   size={34}
-                  color={Paleta.textoSuave}
+                  color={paleta.textoSuave}
                 />
 
                 <Text style={styles.noResultsTitle}>
@@ -480,7 +483,7 @@ export default function HomeScreen() {
                   onPress={registrarVehiculo}
                   accessibilityLabel="Registrar vehículo"
                 >
-                  <Ionicons name="add" size={18} color={Paleta.tinta} />
+                  <Ionicons name="add" size={18} color={paleta.tinta} />
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={irAGaraje}>
@@ -491,7 +494,7 @@ export default function HomeScreen() {
 
             {cargando && !error && (
               <View style={styles.cargandoTarjeta}>
-                <ActivityIndicator size="large" color={Paleta.primario} />
+                <ActivityIndicator size="large" color={paleta.primario} />
 
                 <Text style={styles.cargandoTexto}>
                   Cargando tus vehículos...
@@ -505,7 +508,7 @@ export default function HomeScreen() {
                   <Ionicons
                     name="car-sport"
                     size={40}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
                 </View>
 
@@ -551,7 +554,7 @@ export default function HomeScreen() {
                       <Ionicons
                         name="car-sport"
                         size={20}
-                        color={Paleta.blanco}
+                        color={paleta.blanco}
                       />
                     </View>
 
@@ -574,18 +577,18 @@ export default function HomeScreen() {
                       <Ionicons
                         name="speedometer"
                         size={20}
-                        color={Paleta.tinta}
+                        color={paleta.tinta}
                       />
                     </View>
 
                     <Text
-                      style={[styles.summaryNumber, { color: Paleta.tinta }]}
+                      style={[styles.summaryNumber, { color: paleta.tinta }]}
                     >
                       {formatoKm(kilometrajeTotal).replace(' km', '')}
                     </Text>
 
                     <Text
-                      style={[styles.summaryText, { color: '#3E5A08' }]}
+                      style={[styles.summaryText, { color: paleta.textoAcento }]}
                     >
                       Km totales
                     </Text>
@@ -698,7 +701,7 @@ export default function HomeScreen() {
                     { backgroundColor: 'rgba(11,16,48,0.14)' },
                   ]}
                 >
-                  <Ionicons name="add" size={24} color={Paleta.tinta} />
+                  <Ionicons name="add" size={24} color={paleta.tinta} />
                 </View>
 
                 <Text style={styles.actionText}>Registrar</Text>
@@ -718,11 +721,11 @@ export default function HomeScreen() {
                   <Ionicons
                     name="car-sport-outline"
                     size={22}
-                    color={Paleta.blanco}
+                    color={paleta.blanco}
                   />
                 </View>
 
-                <Text style={[styles.actionText, { color: Paleta.blanco }]}>
+                <Text style={[styles.actionText, { color: paleta.blanco }]}>
                   Garaje
                 </Text>
               </TouchableOpacity>
@@ -736,7 +739,7 @@ export default function HomeScreen() {
                   <Ionicons
                     name="shield-checkmark-outline"
                     size={22}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
                 </View>
 
@@ -752,7 +755,7 @@ export default function HomeScreen() {
                   <Ionicons
                     name="notifications-outline"
                     size={22}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
                 </View>
 
@@ -770,7 +773,7 @@ export default function HomeScreen() {
    ESTILOS
    ======================================================= */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -872,7 +875,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     ...sombraDura(3, 3, 'rgba(0,0,0,0.35)'),
   },
 
@@ -890,7 +893,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
   },
 
   /* -----------------------------
@@ -934,7 +937,7 @@ const styles = StyleSheet.create({
     height: 56,
     marginTop: 16,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     ...sombraDura(4, 4, 'rgba(0,0,0,0.35)'),
   },
 
@@ -959,7 +962,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 5,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
   },
 
   /* -----------------------------
@@ -995,7 +998,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Paleta.acento,
     borderWidth: 1.5,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
   },
 
   sectionAcciones: {
@@ -1010,7 +1013,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     ...sombraDura(2, 2),
@@ -1042,7 +1045,7 @@ const styles = StyleSheet.create({
 
   clearSearch: {
     fontSize: 12,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -1058,7 +1061,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 10,
     marginHorizontal: 16,
     marginBottom: 14,
@@ -1137,7 +1140,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: Paleta.primarioClaro,
     borderWidth: 1.5,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
@@ -1153,7 +1156,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Paleta.peligroFondo,
     borderWidth: 1.5,
-    borderColor: '#B3123E',
+    borderColor: Paleta.textoPeligro,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: Radios.suave,
@@ -1163,7 +1166,7 @@ const styles = StyleSheet.create({
   errorTexto: {
     flex: 1,
     fontSize: 13,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     lineHeight: 18,
     fontWeight: '600',
   },
@@ -1189,7 +1192,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Paleta.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     marginHorizontal: 16,
     borderRadius: Radios.grande,
     padding: 24,
@@ -1202,7 +1205,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: Paleta.primarioClaro,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -1241,7 +1244,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 16,
     ...sombraDura(4, 4),
   },
@@ -1369,7 +1372,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',

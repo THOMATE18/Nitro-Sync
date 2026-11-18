@@ -24,11 +24,12 @@ es super administrador se redirige a la app principal.
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 
-import { Paleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useTema } from '@/context/TemaContext';
 
 export default function AdminLayout() {
   const { esSuperAdmin, loading } = useAuth();
+  const { paleta } = useTema();
 
   if (loading) return null;
 
@@ -40,12 +41,12 @@ export default function AdminLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Paleta.primario,
-        tabBarInactiveTintColor: Paleta.textoSuave,
+        tabBarActiveTintColor: paleta.primario,
+        tabBarInactiveTintColor: paleta.textoSuave,
         tabBarStyle: {
-          backgroundColor: Paleta.tarjeta,
+          backgroundColor: paleta.tarjeta,
           borderTopWidth: 2,
-          borderTopColor: Paleta.tinta,
+          borderTopColor: paleta.bordeDuro,
           paddingTop: 6,
         },
         tabBarLabelStyle: {

@@ -18,8 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 import Estrellas from '@/components/ui/estrellas';
-import { Gradientes, Paleta, Radios, sombraDura } from '@/constants/theme';
+import { Gradientes, Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { guardarOpinion, leerMiOpinion } from '@/services/opiniones';
 import { CARACTERISTICAS } from '@/utils/opiniones';
 
@@ -34,6 +35,8 @@ function Pregunta({
   valor: number;
   onChange: (valor: number) => void;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={styles.pregunta}>
       <Text style={styles.preguntaTitulo}>{titulo}</Text>
@@ -46,6 +49,8 @@ export default function OpinionScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [calificacion, setCalificacion] = useState(0);
   const [facilidad, setFacilidad] = useState(0);
@@ -192,7 +197,7 @@ export default function OpinionScreen() {
                   <Ionicons
                     name={opcion.icono}
                     size={18}
-                    color={activa ? Paleta.acento : Paleta.textoSecundario}
+                    color={activa ? paleta.acento : paleta.textoSecundario}
                   />
                   <Text
                     style={[styles.opcionTexto, activa && styles.opcionTextoActiva]}
@@ -247,7 +252,7 @@ export default function OpinionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 40 },
   hero: {
@@ -262,7 +267,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 18,
     marginHorizontal: 16,
     marginTop: -36,
@@ -284,7 +289,7 @@ const styles = StyleSheet.create({
     borderColor: Paleta.borde,
     backgroundColor: Paleta.fondo,
   },
-  opcionActiva: { backgroundColor: Paleta.tinta, borderColor: Paleta.tinta },
+  opcionActiva: { backgroundColor: Paleta.tinta, borderColor: Paleta.bordeDuro },
   opcionTexto: { fontSize: 14, fontWeight: '800', color: Paleta.textoSecundario },
   opcionTextoActiva: { color: Paleta.acento },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -296,7 +301,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Paleta.borde,
   },
-  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.tinta },
+  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.bordeDuro },
   chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
   chipTextoActivo: { color: '#FFFFFF' },
   comentario: {

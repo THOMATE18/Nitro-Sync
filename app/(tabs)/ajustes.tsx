@@ -31,7 +31,8 @@ import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import { useConfirm, useAlerta } from '@/components/ui/confirm-dialog';
-import { Paleta, Radios, Sombras, Gradientes } from '@/constants/theme';
+import { Radios, Sombras, Gradientes, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema, type ModoTema } from '@/context/TemaContext';
 import {
   getNotificationStatus,
   requestNotificationPermission,
@@ -64,11 +65,24 @@ function textoPermiso(estado: string): string {
   }
 }
 
+/* Opciones del selector de apariencia. */
+const OPCIONES_TEMA: {
+  valor: ModoTema;
+  etiqueta: string;
+  icono: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
+  { valor: 'auto', etiqueta: 'Automático', icono: 'contrast-outline' },
+  { valor: 'claro', etiqueta: 'Claro', icono: 'sunny-outline' },
+  { valor: 'oscuro', etiqueta: 'Oscuro', icono: 'moon-outline' },
+];
+
 export default function AjustesScreen() {
   const { user, logout } = useAuth();
   const { vehiculos } = useVehiculos();
   const confirmar = useConfirm();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { modo, definirModo, paleta } = useTema();
   const [permissionStatus, setPermissionStatus] = useState<string>('undetermined');
   const [loading, setLoading] = useState(false);
   const [notificaciones, setNotificaciones] = useState({
@@ -275,6 +289,48 @@ export default function AjustesScreen() {
         </LinearGradient>
 
         <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Apariencia</Text>
+
+          <Text style={styles.info}>
+            Elige cómo se ve la aplicación. La opción automática sigue el tema
+            del sistema (claro u oscuro).
+          </Text>
+
+          <View style={styles.temaFila}>
+            {OPCIONES_TEMA.map((opcion) => {
+              const activo = modo === opcion.valor;
+
+              return (
+                <TouchableOpacity
+                  key={opcion.valor}
+                  style={[styles.temaOpcion, activo && styles.temaOpcionActiva]}
+                  onPress={() => definirModo(opcion.valor)}
+                  activeOpacity={0.85}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: activo }}
+                  accessibilityLabel={`Tema ${opcion.etiqueta}`}
+                >
+                  <Ionicons
+                    name={opcion.icono}
+                    size={20}
+                    color={activo ? paleta.tinta : paleta.textoSecundario}
+                  />
+
+                  <Text
+                    style={[
+                      styles.temaOpcionTexto,
+                      activo && styles.temaOpcionTextoActivo,
+                    ]}
+                  >
+                    {opcion.etiqueta}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.card}>
           <View style={styles.cardHeader}>
             <LinearGradient
               colors={Gradientes.marca}
@@ -450,7 +506,7 @@ export default function AjustesScreen() {
             <Ionicons
               name="shield-checkmark-outline"
               size={20}
-              color={Paleta.primario}
+              color={paleta.primario}
             />
 
             <Text style={styles.linkRowTexto}>Abrir directorio</Text>
@@ -458,7 +514,7 @@ export default function AjustesScreen() {
             <Ionicons
               name="chevron-forward"
               size={18}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
             />
           </TouchableOpacity>
         </View>
@@ -481,7 +537,7 @@ export default function AjustesScreen() {
             <Ionicons
               name="documents-outline"
               size={20}
-              color={Paleta.primario}
+              color={paleta.primario}
             />
 
             <Text style={styles.linkRowTexto}>Importar desde Excel</Text>
@@ -489,7 +545,7 @@ export default function AjustesScreen() {
             <Ionicons
               name="chevron-forward"
               size={18}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
             />
           </TouchableOpacity>
         </View>
@@ -506,33 +562,60 @@ export default function AjustesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Paleta.fondo },
-  scroll: { paddingBottom: 30 },
-  hero: { padding: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  heroTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
-  card: { backgroundColor: Paleta.tarjeta, borderRadius: Radios.tarjeta, padding: 16, margin: 16, marginTop: 16, ...Sombras.tarjeta },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: Paleta.texto, marginBottom: 10 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  cardIcono: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  cardHeaderTexto: { flex: 1 },
-  cardSubtitulo: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 2 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  label: { fontSize: 13, color: Paleta.textoSecundario },
-  value: { fontSize: 13, fontWeight: '700', color: Paleta.texto, textTransform: 'capitalize' },
-  button: { backgroundColor: Paleta.primario, borderRadius: Radios.suave, padding: 12, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  info: { fontSize: 13, color: Paleta.textoSecundario, marginTop: 6, lineHeight: 19 },
-  hint: { fontSize: 12, color: Paleta.textoSuave, marginTop: 10, lineHeight: 17 },
-  testButton: { height: 50, borderRadius: Radios.suave, overflow: 'hidden', marginTop: 14 },
-  testButtonDisabled: { opacity: 0.7 },
-  testButtonRelleno: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  testButtonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Paleta.borde },
-  switchLabel: { fontSize: 14, color: Paleta.texto, flex: 1, marginRight: 10 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Paleta.borde, marginTop: 10 },
-  linkRowTexto: { flex: 1, fontSize: 14, fontWeight: '800', color: Paleta.primario },
-  logoutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  logoutText: { color: '#B91C1C', fontWeight: '700' },
-});
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: Paleta.fondo },
+    scroll: { paddingBottom: 30 },
+    hero: { padding: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+    heroTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+    heroSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
+    card: { backgroundColor: Paleta.tarjeta, borderRadius: Radios.tarjeta, padding: 16, margin: 16, marginTop: 16, ...Sombras.tarjeta },
+    sectionTitle: { fontSize: 16, fontWeight: '800', color: Paleta.texto, marginBottom: 10 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    cardIcono: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    cardHeaderTexto: { flex: 1 },
+    cardSubtitulo: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 2 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    label: { fontSize: 13, color: Paleta.textoSecundario },
+    value: { fontSize: 13, fontWeight: '700', color: Paleta.texto, textTransform: 'capitalize' },
+    button: { backgroundColor: Paleta.primario, borderRadius: Radios.suave, padding: 12, alignItems: 'center', marginTop: 8 },
+    buttonText: { color: '#fff', fontWeight: '700' },
+    info: { fontSize: 13, color: Paleta.textoSecundario, marginTop: 6, lineHeight: 19 },
+    hint: { fontSize: 12, color: Paleta.textoSuave, marginTop: 10, lineHeight: 17 },
+    testButton: { height: 50, borderRadius: Radios.suave, overflow: 'hidden', marginTop: 14 },
+    testButtonDisabled: { opacity: 0.7 },
+    testButtonRelleno: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    testButtonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Paleta.borde },
+    switchLabel: { fontSize: 14, color: Paleta.texto, flex: 1, marginRight: 10 },
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: Paleta.borde, marginTop: 10 },
+    linkRowTexto: { flex: 1, fontSize: 14, fontWeight: '800', color: Paleta.primario },
+    logoutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+    logoutText: { color: Paleta.textoPeligro, fontWeight: '700' },
+
+    /* Selector de apariencia */
+    temaFila: { flexDirection: 'row', gap: 8, marginTop: 12 },
+    temaOpcion: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 14,
+      borderRadius: Radios.suave,
+      borderWidth: 2,
+      borderColor: Paleta.borde,
+      backgroundColor: Paleta.fondoAlterno,
+    },
+    temaOpcionActiva: {
+      borderColor: Paleta.bordeDuro,
+      backgroundColor: Paleta.acento,
+    },
+    temaOpcionTexto: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: Paleta.textoSecundario,
+    },
+    temaOpcionTextoActivo: {
+      color: Paleta.tinta,
+    },
+  });

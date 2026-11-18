@@ -36,3 +36,70 @@ export function describirErrorFirestore(
       return 'No fue posible cargar los datos de Firestore.';
   }
 }
+
+/*
+=======================================================
+CLASIFICACIÓN DE ERRORES (PARA ESTADOS DE PANTALLA)
+=======================================================
+
+A diferencia de `describirErrorFirestore` (pensado para
+avisos genéricos), esta función separa los tres casos que
+una pantalla debe mostrar de forma distinta:
+
+  - 'red'        -> no hay conexión (reintentar suele servir).
+  - 'permisos'   -> las reglas bloquean la lectura.
+  - 'indice'     -> falta un índice compuesto en Firestore.
+  - 'desconocido'-> cualquier otro fallo.
+
+Así el panel puede mostrar un mensaje distinto y un botón
+"Reintentar" en vez de un único error genérico.
+=======================================================
+*/
+
+export type TipoErrorFirestore = 'red' | 'permisos' | 'indice' | 'desconocido';
+
+export interface ErrorFirestoreClasificado {
+  tipo: TipoErrorFirestore;
+  titulo: string;
+  mensaje: string;
+}
+
+export function clasificarErrorFirestore(
+  error: Error & { code?: string }
+): ErrorFirestoreClasificado {
+  switch (error.code) {
+    case 'unavailable':
+    case 'deadline-exceeded':
+      return {
+        tipo: 'red',
+        titulo: 'Sin conexión',
+        mensaje:
+          'No pudimos contactar a Firestore. Revisa tu conexión a internet e inténtalo de nuevo.',
+      };
+
+    case 'permission-denied':
+      return {
+        tipo: 'permisos',
+        titulo: 'Acceso no autorizado',
+        mensaje:
+          'Tu cuenta no tiene permiso para leer estos datos. Si eres aseguradora, pide al administrador que habilite el acceso de tu organización.',
+      };
+
+    case 'failed-precondition':
+      return {
+        tipo: 'indice',
+        titulo: 'Consulta no preparada',
+        mensaje:
+          'Falta un índice en Firestore para esta consulta. Avísale al administrador de la plataforma.',
+      };
+
+    default:
+      return {
+        tipo: 'desconocido',
+        titulo: 'No se pudieron cargar los datos',
+        mensaje:
+          error.message ||
+          'Ocurrió un error inesperado. Inténtalo de nuevo en unos segundos.',
+      };
+  }
+}

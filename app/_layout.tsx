@@ -26,6 +26,7 @@ existe sesión no se muestra la pantalla de login.
 */
 
 import {
+  DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from 'expo-router/react-navigation';
@@ -40,11 +41,16 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import 'react-native-reanimated';
 
-import { FondoWeb, Layout, Paleta } from '@/constants/theme';
+import { Layout, type TipoPaleta } from '@/constants/theme';
+import {
+  TemaProvider,
+  useEstilos,
+  useTema,
+} from '@/context/TemaContext';
 
 // Contextos globales: sesión y vehículos en tiempo real
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -82,24 +88,11 @@ export const unstable_settings = {
 TEMA DE NAVEGACIÓN NITRO
 =======================================================
 
-La app usa superficies claras con acentos de tinta y
-azul eléctrico, así que la navegación se fija en claro
-para que los encabezados combinen con las pantallas.
+Se construye a partir de la paleta vigente (clara u
+oscura) para que los encabezados y fondos de la
+navegación combinen con las pantallas.
 =======================================================
 */
-
-const TemaNitro = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: Paleta.primario,
-    background: Paleta.fondo,
-    card: Paleta.tarjeta,
-    text: Paleta.texto,
-    border: Paleta.borde,
-    notification: Paleta.coral,
-  },
-};
 
 /*
 =======================================================
@@ -112,15 +105,51 @@ consultar el estado de la sesión.
 */
 
 function RootNavigator() {
-  const { user, loading, esAdmin, esAseguradora, esSuperAdmin, debeCambiarContrasena } =
+  const { user, loading, esAdmin, esAseguradora, esSuperAdmin, debeCambiarContrasena, debeAutorizarDatos } =
     useAuth();
+  const { paleta } = useTema();
+  const styles = useEstilos(crearEstilos);
   const mostrarBanner = useNotificationBanner();
   const isMountedRef = useRef(true);
   const listenersRef = useRef<any[]>([]);
 
   /* Gate del primer ingreso: obliga a cambiar la contraseña. */
   const necesitaCambio = !!user && debeCambiarContrasena;
-  const sesionLista = !!user && !necesitaCambio;
+
+  /* Gate del tratamiento de datos: obliga a aceptar antes de usar la app. */
+  const necesitaAutorizar = !!user && !necesitaCambio && debeAutorizarDatos;
+
+  const sesionLista = !!user && !necesitaCambio && !necesitaAutorizar;
+
+  /*
+  ======================================================
+  DESTINO DE REDIRECCIÓN
+
+  Cada `Stack.Protected` necesita un `redirectTo` que
+  SIEMPRE apunte a una ruta habilitada para el estado
+  actual. Si el destino también estuviera protegido, se
+  produciría un bucle de redirecciones (pantalla en
+  blanco + "Maximum update depth exceeded").
+
+  Por eso el destino se calcula una sola vez y es válido
+  en todos los casos:
+
+    sin sesión            -> (auth)/login
+    primer ingreso        -> cambiar-contrasena
+    falta autorización    -> autorizacion
+    aseguradora           -> (insurer)
+    resto (usuario/admin) -> (tabs)
+  ======================================================
+  */
+  const destino = !user
+    ? '/(auth)/login'
+    : necesitaCambio
+      ? '/cambiar-contrasena'
+      : necesitaAutorizar
+        ? '/autorizacion'
+        : esAseguradora
+          ? '/(insurer)'
+          : '/(tabs)';
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -204,7 +233,7 @@ function RootNavigator() {
 
         <ActivityIndicator
           size="large"
-          color={Paleta.primario}
+          color={paleta.primario}
           style={styles.loadingIndicator}
         />
       </View>
@@ -220,11 +249,11 @@ function RootNavigator() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: Paleta.tarjeta },
-        headerTintColor: Paleta.texto,
+        headerStyle: { backgroundColor: paleta.tarjeta },
+        headerTintColor: paleta.texto,
         headerTitleStyle: { fontWeight: '800' },
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: Paleta.fondo },
+        contentStyle: { backgroundColor: paleta.fondo },
       }}
     >
       {/*
@@ -234,7 +263,7 @@ function RootNavigator() {
       ruta disponible es esta pantalla. El resto de grupos
       exige `!necesitaCambio`.
       */}
-      <Stack.Protected guard={necesitaCambio} redirectTo="/(tabs)">
+      <Stack.Protected guard={necesitaCambio} redirectTo={destino}>
         <Stack.Screen
           name="cambiar-contrasena"
           options={{ headerShown: false }}
@@ -242,9 +271,22 @@ function RootNavigator() {
       </Stack.Protected>
 
       {/*
+      AUTORIZACIÓN DE TRATAMIENTO DE DATOS (PRIMER INGRESO)
+
+      Mientras falte aceptar el texto vigente, la única ruta
+      disponible es esta pantalla.
+      */}
+      <Stack.Protected guard={necesitaAutorizar} redirectTo={destino}>
+        <Stack.Screen
+          name="autorizacion"
+          options={{ headerShown: false }}
+        />
+      </Stack.Protected>
+
+      {/*
       Rutas disponibles cuando existe sesión.
       */}
-      <Stack.Protected guard={sesionLista && !esAseguradora} redirectTo="/(auth)/login">
+      <Stack.Protected guard={sesionLista && !esAseguradora} redirectTo={destino}>
         {/* Grupo de pestañas: Inicio y Explorar */}
         <Stack.Screen
           name="(tabs)"
@@ -339,7 +381,7 @@ function RootNavigator() {
         />
       </Stack.Protected>
 
-      <Stack.Protected guard={sesionLista && esAdmin} redirectTo="/(tabs)">
+      <Stack.Protected guard={sesionLista && esAdmin} redirectTo={destino}>
         <Stack.Screen
           name="admin/vehiculo"
           options={{
@@ -356,7 +398,7 @@ function RootNavigator() {
       */}
       <Stack.Protected
         guard={sesionLista && esAseguradora}
-        redirectTo="/(tabs)"
+        redirectTo={destino}
       >
         <Stack.Screen
           name="(insurer)"
@@ -372,7 +414,7 @@ function RootNavigator() {
       */}
       <Stack.Protected
         guard={sesionLista && esSuperAdmin}
-        redirectTo="/(tabs)"
+        redirectTo={destino}
       >
         <Stack.Screen
           name="(admin)"
@@ -381,7 +423,7 @@ function RootNavigator() {
       </Stack.Protected>
 
       {/* Rutas disponibles cuando NO existe sesión */}
-      <Stack.Protected guard={!user} redirectTo="/(tabs)">
+      <Stack.Protected guard={!user} redirectTo={destino}>
         <Stack.Screen
           name="(auth)"
           options={{ headerShown: false }}
@@ -393,7 +435,46 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider value={TemaNitro}>
+    <TemaProvider>
+      <AppTema />
+    </TemaProvider>
+  );
+}
+
+/*
+=======================================================
+SHELL DE LA APLICACIÓN
+=======================================================
+
+Consume el tema vigente para el fondo raíz, la barra de
+estado y el tema de la navegación. Debe vivir DENTRO de
+TemaProvider.
+=======================================================
+*/
+
+function AppTema() {
+  const { paleta, esOscuro } = useTema();
+  const styles = useEstilos(crearEstilos);
+
+  const temaNavegacion = useMemo(() => {
+    const base = esOscuro ? DarkTheme : DefaultTheme;
+
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: paleta.primario,
+        background: paleta.fondo,
+        card: paleta.tarjeta,
+        text: paleta.texto,
+        border: paleta.borde,
+        notification: paleta.coral,
+      },
+    };
+  }, [paleta, esOscuro]);
+
+  return (
+    <ThemeProvider value={temaNavegacion}>
       {/*
         En el navegador la ventana es muy ancha: esta columna
         centra toda la aplicación con un ancho máximo para que
@@ -427,7 +508,7 @@ export default function RootLayout() {
         </View>
       </View>
 
-      <StatusBar style="dark" />
+      <StatusBar style={esOscuro ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }
@@ -438,55 +519,61 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
-  app: {
-    flex: 1,
-    backgroundColor: Platform.OS === 'web' ? FondoWeb : Paleta.fondo,
-  },
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    app: {
+      flex: 1,
+      /*
+      En web, un tono ligeramente distinto detrás de la
+      columna centrada para que la app "flote".
+      */
+      backgroundColor:
+        Platform.OS === 'web' ? Paleta.fondoAlterno : Paleta.fondo,
+    },
 
-  columna: {
-    flex: 1,
-  },
+    columna: {
+      flex: 1,
+    },
 
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Paleta.fondo,
-    padding: 24,
-  },
+    loading: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Paleta.fondo,
+      padding: 24,
+    },
 
-  loadingMarca: {
-    backgroundColor: Paleta.acento,
-    borderWidth: 2,
-    borderColor: Paleta.tinta,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    marginBottom: 16,
-  },
+    loadingMarca: {
+      backgroundColor: Paleta.acento,
+      borderWidth: 2,
+      borderColor: Paleta.tinta,
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      marginBottom: 16,
+    },
 
-  loadingLogo: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 6,
-    color: Paleta.tinta,
-  },
+    loadingLogo: {
+      fontSize: 24,
+      fontWeight: '900',
+      letterSpacing: 6,
+      color: Paleta.tinta,
+    },
 
-  loadingTitulo: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: Paleta.texto,
-    letterSpacing: 0.4,
-  },
+    loadingTitulo: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: Paleta.texto,
+      letterSpacing: 0.4,
+    },
 
-  loadingSubtitle: {
-    fontSize: 13,
-    color: Paleta.textoSecundario,
-    marginTop: 6,
-  },
+    loadingSubtitle: {
+      fontSize: 13,
+      color: Paleta.textoSecundario,
+      marginTop: 6,
+    },
 
-  loadingIndicator: {
-    marginTop: 20,
-  },
-});
+    loadingIndicator: {
+      marginTop: 20,
+    },
+  });

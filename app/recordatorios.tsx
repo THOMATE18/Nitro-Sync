@@ -27,8 +27,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 
-import { ColoresRecordatorio, Gradientes, Paleta, Radios, Sombras } from '@/constants/theme';
+import { ColoresRecordatorio, Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 
 import { useRecordatoriosDeVehiculos } from '@/hooks/use-recordatorios';
@@ -111,6 +112,9 @@ export default function RecordatoriosScreen() {
 
   const { recordatorios, cargando, error } =
     useRecordatoriosDeVehiculos(vehiculos);
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const nuevoRecordatorio = (vehiculoId: string) => {
     router.push(`/vehicle/recordatorio?vehiculoId=${vehiculoId}`);
@@ -206,7 +210,7 @@ export default function RecordatoriosScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Nuevo recordatorio para ${vehiculo.nombre}`}
               >
-                <Ionicons name="notifications-outline" size={16} color={Paleta.primario} />
+                <Ionicons name="notifications-outline" size={16} color={paleta.primario} />
 
                 <Text style={styles.chipVehiculoTexto} numberOfLines={1}>
                   {vehiculo.nombre}
@@ -224,7 +228,7 @@ export default function RecordatoriosScreen() {
 
         {cargandoTotal && (
           <View style={styles.cargandoTarjeta}>
-            <ActivityIndicator size="large" color={Paleta.primario} />
+            <ActivityIndicator size="large" color={paleta.primario} />
 
             <Text style={styles.cargandoTexto}>Cargando recordatorios...</Text>
           </View>
@@ -298,7 +302,7 @@ export default function RecordatoriosScreen() {
               ) : null}
 
               <View style={styles.lineaFecha}>
-                <Ionicons name="calendar-outline" size={14} color={Paleta.primario} />
+                <Ionicons name="calendar-outline" size={14} color={paleta.primario} />
 
                 <Text style={styles.textoFecha}>
                   {formatoFecha(recordatorio.fecha)}
@@ -308,7 +312,7 @@ export default function RecordatoriosScreen() {
                   <Text
                     style={[
                       styles.textoDias,
-                      dias < 0 && { color: Paleta.peligro },
+                      dias < 0 && { color: paleta.peligro },
                     ]}
                   >
                     · {textoDiasVencimiento(dias)}
@@ -320,7 +324,7 @@ export default function RecordatoriosScreen() {
 
               {avisos.length > 0 ? (
                 <View style={styles.avisos}>
-                  <Ionicons name="alarm-outline" size={14} color={Paleta.textoSuave} />
+                  <Ionicons name="alarm-outline" size={14} color={paleta.textoSuave} />
 
                   <Text style={styles.avisosTexto}>
                     Avisos: {avisos.map((aviso) => formatoFecha(aviso)).join(' · ')}
@@ -328,9 +332,9 @@ export default function RecordatoriosScreen() {
                 </View>
               ) : (
                 <View style={styles.avisos}>
-                  <Ionicons name="checkmark-done-outline" size={14} color={Paleta.exito} />
+                  <Ionicons name="checkmark-done-outline" size={14} color={paleta.exito} />
 
-                  <Text style={[styles.avisosTexto, { color: Paleta.exito }]}>
+                  <Text style={[styles.avisosTexto, { color: paleta.exito }]}>
                     Sin avisos pendientes
                   </Text>
                 </View>
@@ -347,7 +351,7 @@ export default function RecordatoriosScreen() {
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -584,7 +588,7 @@ const styles = StyleSheet.create({
   errorTexto: {
     flex: 1,
     fontSize: 13,
-    color: '#B91C1C',
+    color: Paleta.textoPeligro,
   },
 
   /* -----------------------------

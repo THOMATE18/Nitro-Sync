@@ -36,9 +36,9 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 
 import {
   ColoresRecordatorio,
-  Paleta,
   Radios,
   Sombras,
+  type TipoPaleta,
 } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
@@ -46,6 +46,7 @@ import { useAlerta } from '@/components/ui/confirm-dialog';
 import SelectorFecha from '@/components/ui/selector-fecha';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
 
@@ -83,6 +84,9 @@ export default function FormularioRecordatorioScreen() {
 
   const { user } = useAuth();
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const { registros, cargando } = useRegistrosVehiculo<Recordatorio>(
     'recordatorios',
@@ -154,7 +158,7 @@ export default function FormularioRecordatorioScreen() {
   if (modo === 'editar' && cargando && !registroOriginal) {
     return (
       <View style={styles.avisoContenedor}>
-        <ActivityIndicator size="large" color={Paleta.primario} />
+        <ActivityIndicator size="large" color={paleta.primario} />
 
         <Text style={styles.avisoTexto}>Cargando recordatorio...</Text>
       </View>
@@ -324,7 +328,7 @@ export default function FormularioRecordatorioScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Lavado general"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={titulo}
             onChangeText={setTitulo}
             maxLength={60}
@@ -335,7 +339,7 @@ export default function FormularioRecordatorioScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Lavar y encerar el carro"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={descripcion}
             onChangeText={setDescripcion}
             maxLength={140}
@@ -430,7 +434,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,

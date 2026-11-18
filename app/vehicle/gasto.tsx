@@ -33,13 +33,14 @@ import {
 
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 import SelectorFecha from '@/components/ui/selector-fecha';
 
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import { useRegistrosVehiculo } from '@/hooks/use-registros-vehiculo';
 
@@ -81,6 +82,9 @@ export default function FormularioGastoScreen() {
 
   const { user } = useAuth();
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const { registros, cargando } = useRegistrosVehiculo<Gasto>(
     'gastos',
@@ -152,7 +156,7 @@ export default function FormularioGastoScreen() {
   if (modo === 'editar' && cargando && !registroOriginal) {
     return (
       <View style={styles.avisoContenedor}>
-        <ActivityIndicator size="large" color={Paleta.primario} />
+        <ActivityIndicator size="large" color={paleta.primario} />
 
         <Text style={styles.avisoTexto}>Cargando gasto...</Text>
       </View>
@@ -359,7 +363,7 @@ export default function FormularioGastoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Full tank de gasolina"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={descripcion}
             onChangeText={setDescripcion}
             maxLength={80}
@@ -370,7 +374,7 @@ export default function FormularioGastoScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: 60000"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             keyboardType="number-pad"
             value={valor}
             onChangeText={(texto) => setValor(texto.replace(/[^0-9]/g, ''))}
@@ -415,7 +419,7 @@ ESTILOS
 =======================================================
 */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,

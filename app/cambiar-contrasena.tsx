@@ -29,7 +29,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
@@ -45,20 +44,23 @@ import { auth, db } from '@/firebaseConfig';
 import { useAuth } from '@/context/AuthContext';
 import {
   Gradientes,
-  Paleta,
   Radios,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import BotonNitro from '@/components/ui/boton-nitro';
+import CampoContrasena from '@/components/ui/campo-contrasena';
 import { useAlerta } from '@/components/ui/confirm-dialog';
 
 export default function CambiarContrasenaScreen() {
   const alerta = useAlerta();
   const { user, esAseguradora, refrescarSesion } = useAuth();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [nueva, setNueva] = useState('');
   const [confirmar, setConfirmar] = useState('');
-  const [ver, setVer] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   /* Requisitos de la contraseña. */
@@ -163,7 +165,7 @@ export default function CambiarContrasenaScreen() {
           style={styles.hero}
         >
           <View style={styles.logoCaja}>
-            <Ionicons name="lock-closed" size={28} color={Paleta.tinta} />
+            <Ionicons name="lock-closed" size={28} color={paleta.tinta} />
           </View>
 
           <Text style={styles.heroTitulo}>Protege tu cuenta</Text>
@@ -178,42 +180,20 @@ export default function CambiarContrasenaScreen() {
           </Text>
 
           <Text style={styles.etiqueta}>Nueva contraseña</Text>
-          <View style={styles.inputCaja}>
-            <Ionicons name="key-outline" size={18} color={Paleta.textoSuave} />
-            <TextInput
-              style={styles.input}
-              placeholder="Escribe la nueva contraseña"
-              placeholderTextColor="#94A3B8"
-              secureTextEntry={!ver}
-              value={nueva}
-              onChangeText={setNueva}
-              autoCapitalize="none"
-            />
-            <Ionicons
-              name={ver ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={Paleta.textoSuave}
-              onPress={() => setVer((valor) => !valor)}
-            />
-          </View>
+          <CampoContrasena
+            placeholder="Escribe la nueva contraseña"
+            value={nueva}
+            onChangeText={setNueva}
+            autoCapitalize="none"
+          />
 
           <Text style={styles.etiqueta}>Confirmar contraseña</Text>
-          <View style={styles.inputCaja}>
-            <Ionicons
-              name="checkmark-done-outline"
-              size={18}
-              color={Paleta.textoSuave}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Repite la nueva contraseña"
-              placeholderTextColor="#94A3B8"
-              secureTextEntry={!ver}
-              value={confirmar}
-              onChangeText={setConfirmar}
-              autoCapitalize="none"
-            />
-          </View>
+          <CampoContrasena
+            placeholder="Repite la nueva contraseña"
+            value={confirmar}
+            onChangeText={setConfirmar}
+            autoCapitalize="none"
+          />
 
           <View style={styles.requisitos}>
             {requisitos.map((item) => (
@@ -221,7 +201,7 @@ export default function CambiarContrasenaScreen() {
                 <Ionicons
                   name={item.cumple ? 'checkmark-circle' : 'ellipse-outline'}
                   size={16}
-                  color={item.cumple ? Paleta.exito : Paleta.textoSuave}
+                  color={item.cumple ? paleta.exito : paleta.textoSuave}
                 />
                 <Text
                   style={[
@@ -249,7 +229,7 @@ export default function CambiarContrasenaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { flexGrow: 1, paddingBottom: 40 },
   hero: {
@@ -266,7 +246,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: Paleta.acento,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -290,7 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.grande,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 24,
     marginHorizontal: 18,
     marginTop: -36,

@@ -36,7 +36,8 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import {
   CONCEPTOS_COSTO,
@@ -74,6 +75,8 @@ export default function GastosMensuales({
 }: GastosMensualesProps) {
   const { user } = useAuth();
   const { vehiculos } = useVehiculos();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const { registros: gastos, cargando } = useRegistrosVehiculo<Gasto>(
     'gastos',
@@ -349,7 +352,7 @@ export default function GastosMensuales({
 
       {cargandoTotal && itemsMes.length === 0 ? (
         <View style={styles.cargando}>
-          <ActivityIndicator color={Paleta.primario} />
+          <ActivityIndicator color={paleta.primario} />
 
           <Text style={styles.cargandoTexto}>
             Preparando los costos del mes...
@@ -411,7 +414,7 @@ export default function GastosMensuales({
                   <Ionicons
                     name={pagado ? 'checkmark' : 'checkmark-outline'}
                     size={18}
-                    color={pagado ? '#FFFFFF' : Paleta.textoSuave}
+                    color={pagado ? '#FFFFFF' : paleta.textoSuave}
                   />
                 </TouchableOpacity>
               </View>
@@ -446,7 +449,7 @@ export default function GastosMensuales({
               <Ionicons
                 name="copy-outline"
                 size={16}
-                color={Paleta.primario}
+                color={paleta.primario}
               />
 
               <Text style={styles.botonSecundarioTexto}>
@@ -484,7 +487,7 @@ export default function GastosMensuales({
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   tarjeta: {
     backgroundColor: Paleta.tarjeta,
     borderRadius: Radios.tarjeta,

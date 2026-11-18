@@ -30,8 +30,9 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta, useConfirm } from '@/components/ui/confirm-dialog';
@@ -71,6 +72,8 @@ export default function FacturacionAdmin() {
   const { user } = useAuth();
   const alerta = useAlerta();
   const confirmar = useConfirm();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [seccion, setSeccion] = useState<Seccion>('suscripciones');
 
@@ -568,8 +571,8 @@ export default function FacturacionAdmin() {
                           {
                             borderColor:
                               p.estado === 'pagado'
-                                ? Paleta.exito
-                                : Paleta.advertencia,
+                                ? paleta.exito
+                                : paleta.advertencia,
                           },
                         ]}
                       >
@@ -579,8 +582,8 @@ export default function FacturacionAdmin() {
                             {
                               color:
                                 p.estado === 'pagado'
-                                  ? Paleta.exito
-                                  : Paleta.advertencia,
+                                  ? paleta.exito
+                                  : paleta.advertencia,
                             },
                           ]}
                         >
@@ -594,15 +597,15 @@ export default function FacturacionAdmin() {
 
                     {p.estado === 'pendiente' ? (
                       <Pressable
-                        style={[styles.accion, { borderColor: Paleta.exito }]}
+                        style={[styles.accion, { borderColor: paleta.exito }]}
                         onPress={() => cobrar(p)}
                       >
                         <Ionicons
                           name="checkmark-circle-outline"
                           size={16}
-                          color={Paleta.exito}
+                          color={paleta.exito}
                         />
-                        <Text style={[styles.accionTexto, { color: Paleta.exito }]}>
+                        <Text style={[styles.accionTexto, { color: paleta.exito }]}>
                           Marcar pagado
                         </Text>
                       </Pressable>
@@ -618,138 +621,139 @@ export default function FacturacionAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: Paleta.fondo },
-  contenido: { paddingBottom: 44 },
-  segmentos: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginTop: -24,
-  },
-  segmento: {
-    flex: 1,
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.suave,
-    borderWidth: 2,
-    borderColor: Paleta.tinta,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  segmentoActivo: { backgroundColor: Paleta.tinta },
-  segmentoTexto: { fontSize: 12.5, fontWeight: '900', color: Paleta.texto },
-  segmentoTextoActivo: { color: Paleta.acento },
-  formulario: {
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 18,
-    marginHorizontal: 16,
-    marginTop: 16,
-    gap: 4,
-    ...Sombras.suave,
-  },
-  formTitulo: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: Paleta.texto,
-    marginBottom: 6,
-  },
-  selector: { gap: 6, marginBottom: 6 },
-  resumen: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Paleta.primario,
-    marginTop: 6,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingVertical: 2,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radios.pastilla,
-    borderWidth: 1.5,
-    borderColor: Paleta.borde,
-    backgroundColor: Paleta.fondo,
-    maxWidth: 240,
-  },
-  chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.primario },
-  chipOscuro: { backgroundColor: Paleta.tinta, borderColor: Paleta.tinta },
-  chipEstado: { backgroundColor: Paleta.fondo },
-  chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
-  chipTextoActivo: { fontSize: 12, fontWeight: '800', color: Paleta.acento },
-  etiqueta: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Paleta.textoSecundario,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  ayuda: { fontSize: 12, color: Paleta.textoSuave, marginTop: 6 },
-  input: {
-    backgroundColor: Paleta.fondo,
-    borderWidth: 1,
-    borderColor: Paleta.borde,
-    borderRadius: Radios.suave,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 14,
-    color: Paleta.texto,
-  },
-  botonForm: { marginTop: 16 },
-  lista: { padding: 16, gap: 12 },
-  vacio: {
-    fontSize: 13,
-    color: Paleta.textoSecundario,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-  tarjeta: {
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 16,
-    gap: 4,
-    ...Sombras.suave,
-  },
-  tarjetaCabecera: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-  },
-  tarjetaTitulo: {
-    fontSize: 14.5,
-    fontWeight: '900',
-    color: Paleta.texto,
-    flexShrink: 1,
-  },
-  tarjetaLinea: { fontSize: 12.5, color: Paleta.textoSecundario },
-  tarjetaPrima: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: Paleta.texto,
-    marginTop: 4,
-  },
-  estado: {
-    borderWidth: 1.5,
-    borderRadius: Radios.pastilla,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  estadoTexto: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
-  accion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1.5,
-    borderRadius: Radios.pastilla,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  accionTexto: { fontSize: 12, fontWeight: '800' },
-});
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    pantalla: { flex: 1, backgroundColor: Paleta.fondo },
+    contenido: { paddingBottom: 44 },
+    segmentos: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 16,
+      marginTop: -24,
+    },
+    segmento: {
+      flex: 1,
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.suave,
+      borderWidth: 2,
+      borderColor: Paleta.bordeDuro,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    segmentoActivo: { backgroundColor: Paleta.tinta },
+    segmentoTexto: { fontSize: 12.5, fontWeight: '900', color: Paleta.texto },
+    segmentoTextoActivo: { color: Paleta.acento },
+    formulario: {
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 18,
+      marginHorizontal: 16,
+      marginTop: 16,
+      gap: 4,
+      ...Sombras.suave,
+    },
+    formTitulo: {
+      fontSize: 17,
+      fontWeight: '900',
+      color: Paleta.texto,
+      marginBottom: 6,
+    },
+    selector: { gap: 6, marginBottom: 6 },
+    resumen: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: Paleta.primario,
+      marginTop: 6,
+    },
+    chips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingVertical: 2,
+    },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: Radios.pastilla,
+      borderWidth: 1.5,
+      borderColor: Paleta.borde,
+      backgroundColor: Paleta.fondo,
+      maxWidth: 240,
+    },
+    chipActivo: { backgroundColor: Paleta.primario, borderColor: Paleta.primario },
+    chipOscuro: { backgroundColor: Paleta.tinta, borderColor: Paleta.bordeDuro },
+    chipEstado: { backgroundColor: Paleta.fondo },
+    chipTexto: { fontSize: 12, fontWeight: '800', color: Paleta.textoSecundario },
+    chipTextoActivo: { fontSize: 12, fontWeight: '800', color: Paleta.acento },
+    etiqueta: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: Paleta.textoSecundario,
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    ayuda: { fontSize: 12, color: Paleta.textoSuave, marginTop: 6 },
+    input: {
+      backgroundColor: Paleta.fondo,
+      borderWidth: 1,
+      borderColor: Paleta.borde,
+      borderRadius: Radios.suave,
+      paddingHorizontal: 14,
+      height: 48,
+      fontSize: 14,
+      color: Paleta.texto,
+    },
+    botonForm: { marginTop: 16 },
+    lista: { padding: 16, gap: 12 },
+    vacio: {
+      fontSize: 13,
+      color: Paleta.textoSecundario,
+      textAlign: 'center',
+      marginTop: 24,
+    },
+    tarjeta: {
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 16,
+      gap: 4,
+      ...Sombras.suave,
+    },
+    tarjetaCabecera: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 10,
+    },
+    tarjetaTitulo: {
+      fontSize: 14.5,
+      fontWeight: '900',
+      color: Paleta.texto,
+      flexShrink: 1,
+    },
+    tarjetaLinea: { fontSize: 12.5, color: Paleta.textoSecundario },
+    tarjetaPrima: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: Paleta.texto,
+      marginTop: 4,
+    },
+    estado: {
+      borderWidth: 1.5,
+      borderRadius: Radios.pastilla,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+    },
+    estadoTexto: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+    accion: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1.5,
+      borderRadius: Radios.pastilla,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      alignSelf: 'flex-start',
+      marginTop: 8,
+    },
+    accionTexto: { fontSize: 12, fontWeight: '800' },
+  });

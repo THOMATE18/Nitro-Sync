@@ -49,11 +49,13 @@ import {
 
 import {
   Gradientes,
-  Paleta,
   Radios,
   Sombras,
   sombraDura,
+  type TipoPaleta,
 } from '@/constants/theme';
+
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
@@ -81,6 +83,9 @@ function iniciales(nombre: string): string {
 
 export default function AseguradorasScreen() {
   const alerta = useAlerta();
+
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [consulta, setConsulta] = useState('');
 
@@ -171,7 +176,7 @@ export default function AseguradorasScreen() {
           style={styles.hero}
         >
           <View style={styles.heroPill}>
-            <Ionicons name="shield-checkmark" size={14} color={Paleta.acento} />
+            <Ionicons name="shield-checkmark" size={14} color={paleta.acento} />
 
             <Text style={styles.heroPillTexto}>Directorio 2026</Text>
           </View>
@@ -195,12 +200,12 @@ export default function AseguradorasScreen() {
             ================================================= */}
 
         <View style={styles.buscador}>
-          <Ionicons name="search" size={18} color={Paleta.textoSuave} />
+          <Ionicons name="search" size={18} color={paleta.textoSuave} />
 
           <TextInput
             style={styles.buscadorInput}
             placeholder="Buscar aseguradora o especialidad"
-            placeholderTextColor={Paleta.textoSuave}
+            placeholderTextColor={paleta.textoSuave}
             value={consulta}
             onChangeText={setConsulta}
             autoCorrect={false}
@@ -213,7 +218,7 @@ export default function AseguradorasScreen() {
               accessibilityRole="button"
               accessibilityLabel="Limpiar búsqueda"
             >
-              <Ionicons name="close-circle" size={18} color={Paleta.textoSuave} />
+              <Ionicons name="close-circle" size={18} color={paleta.textoSuave} />
             </TouchableOpacity>
           )}
         </View>
@@ -241,7 +246,7 @@ export default function AseguradorasScreen() {
                     styles.badge,
                     {
                       backgroundColor: aseguradora.color,
-                      borderColor: Paleta.tinta,
+                      borderColor: paleta.bordeDuro,
                     },
                   ]}
                 >
@@ -273,7 +278,7 @@ export default function AseguradorasScreen() {
                   <Ionicons
                     name="call-outline"
                     size={14}
-                    color={Paleta.primario}
+                    color={paleta.primario}
                   />
 
                   <Text style={styles.telefonoTexto}>
@@ -286,7 +291,7 @@ export default function AseguradorasScreen() {
                     <Ionicons
                       name="headset-outline"
                       size={14}
-                      color={Paleta.textoSecundario}
+                      color={paleta.textoSecundario}
                     />
 
                     <Text style={styles.telefonoTextoSuave}>
@@ -300,7 +305,7 @@ export default function AseguradorasScreen() {
                     <Ionicons
                       name="phone-portrait-outline"
                       size={14}
-                      color={Paleta.textoSecundario}
+                      color={paleta.textoSecundario}
                     />
 
                     <Text style={styles.telefonoTextoSuave}>
@@ -344,7 +349,7 @@ export default function AseguradorasScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Sitio web de ${aseguradora.nombre}`}
                 >
-                  <Ionicons name="globe-outline" size={18} color={Paleta.primario} />
+                  <Ionicons name="globe-outline" size={18} color={paleta.primario} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -357,7 +362,7 @@ export default function AseguradorasScreen() {
 
         <View style={styles.excelCard}>
           <View style={styles.excelIcono}>
-            <Ionicons name="document-text" size={20} color={Paleta.primario} />
+            <Ionicons name="document-text" size={20} color={paleta.primario} />
           </View>
 
           <View style={styles.excelInfo}>
@@ -390,7 +395,7 @@ export default function AseguradorasScreen() {
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   contenedor: {
     flex: 1,
     backgroundColor: Paleta.fondo,
@@ -408,7 +413,7 @@ const styles = StyleSheet.create({
     borderRadius: Radios.grande,
     padding: 20,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     overflow: 'hidden',
     ...sombraDura(6, 6),
   },
@@ -477,7 +482,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Paleta.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     borderRadius: Radios.suave,
     paddingHorizontal: 14,
     height: 50,
@@ -497,7 +502,7 @@ const styles = StyleSheet.create({
   tarjeta: {
     backgroundColor: Paleta.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     borderRadius: Radios.tarjeta,
     padding: 14,
     marginHorizontal: 16,
@@ -587,7 +592,7 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     backgroundColor: Paleta.tarjeta,
     alignItems: 'center',
     justifyContent: 'center',
@@ -633,7 +638,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: Paleta.acentoClaro,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     borderRadius: Radios.tarjeta,
     padding: 14,
     marginHorizontal: 16,
@@ -647,7 +652,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: Paleta.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
   },

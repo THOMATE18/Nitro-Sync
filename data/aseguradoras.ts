@@ -32,6 +32,13 @@ Los números se guardan en formato internacional para que
 
 export interface Aseguradora {
   id: string;
+  /**
+   * Clave normalizada que identifica a la aseguradora en todo
+   * el sistema multi-tenant (organizations.aseguradoraClave y
+   * vehiculos.aseguradoraClave). Es estable: aunque el nombre
+   * comercial cambie, la clave no.
+   */
+  clave: string;
   nombre: string;
   telefono: string;
   telefonoGratuito?: string;
@@ -46,6 +53,7 @@ export interface Aseguradora {
 export const ASEGURADORAS: Aseguradora[] = [
   {
     id: 'sura',
+    clave: 'sura',
     nombre: 'SURA',
     telefono: '+576014378888',
     telefonoGratuito: '018000518888',
@@ -58,6 +66,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'bolivar',
+    clave: 'seguros_bolivar',
     nombre: 'Seguros Bolívar',
     telefono: '+576013122122',
     telefonoGratuito: '018000123322',
@@ -69,6 +78,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'axa',
+    clave: 'axa_colpatria',
     nombre: 'AXA Colpatria',
     telefono: '+576014235757',
     telefonoGratuito: '018000512620',
@@ -80,6 +90,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'mapfre',
+    clave: 'mapfre',
     nombre: 'MAPFRE',
     telefono: '+576013077024',
     telefonoGratuito: '018000519991',
@@ -92,6 +103,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'allianz',
+    clave: 'allianz',
     nombre: 'Allianz',
     telefono: '+576015941133',
     telefonoGratuito: '018000513500',
@@ -103,6 +115,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'liberty',
+    clave: 'liberty',
     nombre: 'Liberty Seguros',
     telefono: '+576019181600',
     whatsapp: '+573164821802',
@@ -113,6 +126,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'sbs',
+    clave: 'sbs',
     nombre: 'SBS Seguros',
     telefono: '+576013138700',
     telefonoGratuito: '018000911360',
@@ -124,6 +138,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'estado',
+    clave: 'seguros_del_estado',
     nombre: 'Seguros del Estado',
     telefono: '+576017443900',
     telefonoGratuito: '018000123010',
@@ -135,6 +150,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'hdi',
+    clave: 'hdi',
     nombre: 'HDI Seguros',
     telefono: '+576013077050',
     telefonoGratuito: '018000113390',
@@ -147,6 +163,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'equidad',
+    clave: 'la_equidad',
     nombre: 'La Equidad Seguros',
     telefono: '+576019172127',
     telefonoGratuito: '018000919538',
@@ -159,6 +176,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
   {
     id: 'positiva',
+    clave: 'positiva',
     nombre: 'Positiva',
     telefono: '+576013307000',
     telefonoGratuito: '018000111170',
@@ -169,7 +187,7 @@ export const ASEGURADORAS: Aseguradora[] = [
   },
 ];
 
-/** Busca una aseguradora por su nombre (tolerante a mayúsculas). */
+/** Busca una aseguradora por nombre, id o clave (tolerante a mayúsculas). */
 export function buscarAseguradora(
   nombre: string | null | undefined
 ): Aseguradora | undefined {
@@ -182,8 +200,43 @@ export function buscarAseguradora(
   return ASEGURADORAS.find(
     (aseguradora) =>
       aseguradora.id === buscado ||
+      aseguradora.clave === buscado ||
       aseguradora.nombre.toLowerCase() === buscado
   );
+}
+
+/**
+ * Normaliza un texto a clave: minúsculas, sin tildes y con
+ * guion bajo entre palabras ("Seguros Bolívar" -> "seguros_bolivar").
+ */
+export function normalizarClave(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Clave normalizada de una aseguradora a partir de su nombre.
+ *
+ *   claveAseguradora('SURA')           -> 'sura'
+ *   claveAseguradora('AXA Colpatria')  -> 'axa_colpatria'
+ *   claveAseguradora('Seguros Bolívar')-> 'seguros_bolivar'
+ *
+ * Si el nombre está en el directorio se usa su `clave`; si no,
+ * se normaliza el texto para no perder el valor. Devuelve '' si
+ * no hay aseguradora (vehículo sin seguro).
+ */
+export function claveAseguradora(nombre: string | null | undefined): string {
+  const limpio = (nombre ?? '').trim();
+
+  if (!limpio) {
+    return '';
+  }
+
+  return buscarAseguradora(limpio)?.clave ?? normalizarClave(limpio);
 }
 
 /** Quita todo lo que no sea dígito o "+" para usar en `tel:`. */

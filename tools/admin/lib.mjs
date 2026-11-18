@@ -287,6 +287,17 @@ export async function leerDocumento(ruta) {
   }
 }
 
+/** Borra un documento. Devuelve true si existia. */
+export async function borrarDocumento(ruta) {
+  try {
+    await llamar(`${BASE_FIRESTORE}/${ruta}`, { method: 'DELETE' });
+    return true;
+  } catch (error) {
+    if (error.status === 404) return false;
+    throw error;
+  }
+}
+
 /* -----------------------------------------------
    FIREBASE AUTHENTICATION
 ----------------------------------------------- */
@@ -349,6 +360,21 @@ export async function revocarSesiones(uid) {
   return actualizarUsuario(uid, {
     validSince: String(Math.floor(Date.now() / 1000)),
   });
+}
+
+/** Elimina una cuenta de Authentication. Devuelve true si existia. */
+export async function eliminarUsuario(uid) {
+  try {
+    await llamar(`${BASE_IDENTIDAD}:delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localId: uid }),
+    });
+    return true;
+  } catch (error) {
+    if (error.status === 404) return false;
+    throw error;
+  }
 }
 
 /* -----------------------------------------------

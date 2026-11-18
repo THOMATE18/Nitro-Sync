@@ -13,8 +13,9 @@ import { Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Estrellas from '@/components/ui/estrellas';
-import { Gradientes, Paleta, Radios, Sombras, sombraDura } from '@/constants/theme';
+import { Gradientes, Radios, Sombras, sombraDura, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { suscribirOpiniones } from '@/services/opiniones';
 import { describirErrorFirestore } from '@/utils/errorFirestore';
 import { resumirOpiniones } from '@/utils/opiniones';
@@ -30,6 +31,8 @@ function Barra({
   proporcion: number;
   valor: string;
 }) {
+  const styles = useEstilos(crearEstilos);
+
   return (
     <View style={styles.barraFila}>
       <Text style={styles.barraEtiqueta}>{etiqueta}</Text>
@@ -48,6 +51,8 @@ function Barra({
 
 function ResultadosOpiniones() {
   const insets = useSafeAreaInsets();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [opiniones, setOpiniones] = useState<Opinion[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -94,7 +99,7 @@ function ResultadosOpiniones() {
       {cargando && (
         <ActivityIndicator
           size="large"
-          color={Paleta.primario}
+          color={paleta.primario}
           style={styles.cargando}
         />
       )}
@@ -189,7 +194,7 @@ export default function OpinionesRoute() {
   return <ResultadosOpiniones />;
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 40 },
   hero: {
@@ -212,7 +217,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: Radios.suave,
     backgroundColor: Paleta.peligroFondo,
-    color: '#B3123E',
+    color: Paleta.textoPeligro,
     fontSize: 13,
   },
   vacio: {
@@ -234,7 +239,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: -34,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     ...sombraDura(5, 5),
   },
   promedio: { fontSize: 54, fontWeight: '900', color: Paleta.texto },

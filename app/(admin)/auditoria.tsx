@@ -20,7 +20,8 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import { suscribirAuditoria } from '@/services/auditoria';
 import type { RegistroAuditoria } from '@/types/negocio';
@@ -39,6 +40,8 @@ function iconoAccion(accion: string): keyof typeof Ionicons.glyphMap {
 
 export default function AuditoriaAdmin() {
   const [registros, setRegistros] = useState<RegistroAuditoria[]>([]);
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   useEffect(() => {
     return suscribirAuditoria(setRegistros);
@@ -48,7 +51,7 @@ export default function AuditoriaAdmin() {
     <View style={styles.tarjeta}>
       <View style={styles.tarjetaCabecera}>
         <View style={styles.iconoCaja}>
-          <Ionicons name={iconoAccion(item.accion)} size={16} color={Paleta.tinta} />
+          <Ionicons name={iconoAccion(item.accion)} size={16} color={paleta.tinta} />
         </View>
 
         <View style={styles.tarjetaTextos}>
@@ -95,7 +98,7 @@ export default function AuditoriaAdmin() {
             <Ionicons
               name="shield-checkmark-outline"
               size={44}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
             />
             <Text style={styles.vacioTitulo}>Sin registros</Text>
             <Text style={styles.vacioTexto}>
@@ -108,39 +111,40 @@ export default function AuditoriaAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: Paleta.fondo },
-  lista: { padding: 16, gap: 12, paddingBottom: 40, marginTop: -16 },
-  tarjeta: {
-    backgroundColor: Paleta.tarjeta,
-    borderRadius: Radios.tarjeta,
-    padding: 16,
-    gap: 4,
-    ...Sombras.suave,
-  },
-  tarjetaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconoCaja: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: Paleta.acento,
-    borderWidth: 2,
-    borderColor: Paleta.tinta,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tarjetaTextos: { flex: 1 },
-  accion: { fontSize: 14, fontWeight: '900', color: Paleta.texto },
-  actor: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 1 },
-  entidad: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 4 },
-  org: { fontSize: 11.5, color: Paleta.textoSuave },
-  fecha: { fontSize: 11, color: Paleta.textoSuave, marginTop: 2 },
-  vacio: { alignItems: 'center', marginTop: 60, gap: 8, paddingHorizontal: 30 },
-  vacioTitulo: { fontSize: 17, fontWeight: '900', color: Paleta.texto },
-  vacioTexto: {
-    fontSize: 13,
-    color: Paleta.textoSecundario,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-});
+const crearEstilos = (Paleta: TipoPaleta) =>
+  StyleSheet.create({
+    pantalla: { flex: 1, backgroundColor: Paleta.fondo },
+    lista: { padding: 16, gap: 12, paddingBottom: 40, marginTop: -16 },
+    tarjeta: {
+      backgroundColor: Paleta.tarjeta,
+      borderRadius: Radios.tarjeta,
+      padding: 16,
+      gap: 4,
+      ...Sombras.suave,
+    },
+    tarjetaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    iconoCaja: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: Paleta.acento,
+      borderWidth: 2,
+      borderColor: Paleta.bordeDuro,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tarjetaTextos: { flex: 1 },
+    accion: { fontSize: 14, fontWeight: '900', color: Paleta.texto },
+    actor: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 1 },
+    entidad: { fontSize: 12, color: Paleta.textoSecundario, marginTop: 4 },
+    org: { fontSize: 11.5, color: Paleta.textoSuave },
+    fecha: { fontSize: 11, color: Paleta.textoSuave, marginTop: 2 },
+    vacio: { alignItems: 'center', marginTop: 60, gap: 8, paddingHorizontal: 30 },
+    vacioTitulo: { fontSize: 17, fontWeight: '900', color: Paleta.texto },
+    vacioTexto: {
+      fontSize: 13,
+      color: Paleta.textoSecundario,
+      textAlign: 'center',
+      lineHeight: 19,
+    },
+  });

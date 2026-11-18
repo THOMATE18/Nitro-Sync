@@ -3,13 +3,26 @@
 NITRO SYNC - PANEL ASEGURADORA · AVISOS
 =======================================================
 
-Historial de avisos (`notificationLogs`) y envío de un
-aviso nuevo por WhatsApp.
+Tres bloques:
 
-El envío es MANUAL: la app no tiene credenciales de Meta,
-así que prepara un enlace `wa.me` con el mensaje ya
-redactado. La aseguradora lo abre y lo envía desde su
-propio número.
+  1. RENOVACIONES PRÓXIMAS -> vehículos con el seguro de
+     la aseguradora que vencen dentro del umbral, con su
+     autorización operativa y un botón de contacto directo
+     por WhatsApp.
+  2. TAREA PROGRAMADA -> prepara los recordatorios de
+     renovación por correo (proveedor mock) y por WhatsApp
+     (enlaces `wa.me`). Solo avisa si el propietario
+     autorizó sus datos.
+  3. HISTORIAL -> avisos registrados en `notificationLogs`,
+     con el canal (Correo / WhatsApp) y su estado.
+
+Los vehículos se leen con `suscribirVehiculosAseguradora`:
+la aseguradora SOLO ve los suyos (nunca descarga todo ni
+filtra en el cliente).
+
+El envío es MANUAL: la app no tiene credenciales de Meta ni
+de correo, así que prepara el mensaje y lo registra como
+`manual` (nunca como `enviado`).
 
 Los avisos COMERCIALES (promocionar planes) solo se
 preparan si el propietario otorgó el consentimiento
@@ -17,7 +30,7 @@ comercial; si no, quedan registrados como `omitido`.
 =======================================================
 */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   KeyboardAvoidingView,
@@ -31,12 +44,13 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { Paleta, Radios, Sombras } from '@/constants/theme';
+import { Radios, Sombras, type TipoPaleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import EncabezadoPanel from '@/components/ui/encabezado-panel';
 import BotonNitro from '@/components/ui/boton-nitro';
 import { useAlerta } from '@/components/ui/confirm-dialog';
-import { suscribirVinculosOrg } from '@/services/vinculos';
+import { suscribirVehiculosAseguradora } from '@/services/vehiculosAseguradora';
 import { suscribirConsentimientosOrg } from '@/services/consentimientos';
 import {
   abrirWhatsapp,
@@ -45,12 +59,21 @@ import {
   suscribirAvisosOrg,
   type PlantillaWhatsapp,
 } from '@/services/whatsapp';
+import {
+  diasHasta,
+  ejecutarRecordatoriosRenovacion,
+  renovacionesProximas,
+  tieneAutorizacionOperativa,
+  UMBRAL_DIAS_DEFAULT,
+} from '@/services/avisosRenovacion';
 import { registrarAuditoria } from '@/services/auditoria';
-import type {
-  Consentimiento,
-  RegistroNotificacion,
-  VinculoAseguradora,
+import { enlaceWhatsApp, mensajeContacto } from '@/utils/contacto';
+import {
+  ETIQUETA_CANAL,
+  type Consentimiento,
+  type RegistroNotificacion,
 } from '@/types/negocio';
+import type { VehiculoAdmin } from '@/types/models';
 
 const OPCIONES: PlantillaWhatsapp[] = [
   'recordatorio_seguro',
@@ -66,7 +89,15 @@ const ETIQUETA_ESTADO_AVISO: Record<string, string> = {
   omitido: 'Omitido',
 };
 
-function colorAviso(estado: string) {
+const ETIQUETA_PLANTILLA: Record<string, string> = {
+  recordatorio_soat: 'Recordatorio SOAT',
+  recordatorio_seguro: 'Recordatorio de seguro',
+  renovacion: 'Renovación de póliza',
+  renovacion_email: 'Renovación por correo',
+  oferta_comercial: 'Oferta comercial',
+};
+
+function colorAviso(Paleta: TipoPaleta, estado: string) {
   switch (estado) {
     case 'enviado':
       return Paleta.exito;
@@ -84,23 +115,25 @@ function colorAviso(estado: string) {
 export default function AvisosAseguradora() {
   const { user, orgId, organizacion } = useAuth();
   const alerta = useAlerta();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
+
+  const clave = organizacion?.aseguradoraClave ?? '';
 
   const [avisos, setAvisos] = useState<RegistroNotificacion[]>([]);
-  const [vinculos, setVinculos] = useState<VinculoAseguradora[]>([]);
+  const [vehiculos, setVehiculos] = useState<VehiculoAdmin[]>([]);
   const [consentimientos, setConsentimientos] = useState<Consentimiento[]>([]);
 
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [vinculoId, setVinculoId] = useState<string | null>(null);
+  const [ejecutando, setEjecutando] = useState(false);
+  const [vehiculoId, setVehiculoId] = useState<string | null>(null);
   const [plantilla, setPlantilla] = useState<PlantillaWhatsapp>('recordatorio_seguro');
 
   useEffect(() => {
     if (!orgId) return;
 
     const pararAvisos = suscribirAvisosOrg(orgId, setAvisos);
-    const pararVinculos = suscribirVinculosOrg(orgId, (lista) =>
-      setVinculos(lista.filter((v) => v.estado === 'activo'))
-    );
     const pararConsentimientos = suscribirConsentimientosOrg(
       orgId,
       setConsentimientos
@@ -108,10 +141,15 @@ export default function AvisosAseguradora() {
 
     return () => {
       pararAvisos();
-      pararVinculos();
       pararConsentimientos();
     };
   }, [orgId]);
+
+  useEffect(() => {
+    if (!clave) return;
+
+    return suscribirVehiculosAseguradora(clave, setVehiculos);
+  }, [clave]);
 
   /* Vehículos con consentimiento comercial vigente. */
   const conOptInComercial = useMemo(() => {
@@ -124,15 +162,133 @@ export default function AvisosAseguradora() {
     return set;
   }, [consentimientos]);
 
-  const vinculo = useMemo(
-    () => vinculos.find((v) => v.id === vinculoId) ?? null,
-    [vinculos, vinculoId]
+  const vehiculo = useMemo(
+    () => vehiculos.find((v) => v.id === vehiculoId) ?? null,
+    [vehiculos, vehiculoId]
   );
+
+  /*
+  Vehículos cuya vigencia vence dentro del umbral, con la
+  indicación de si el propietario autorizó el uso operativo
+  de sus datos para esta organización.
+  */
+  const proximas = useMemo(
+    () =>
+      renovacionesProximas(vehiculos, UMBRAL_DIAS_DEFAULT).map((v) => ({
+        vehiculo: v,
+        dias: diasHasta(v.vencimientoSeguro),
+        autorizado: tieneAutorizacionOperativa(
+          consentimientos,
+          v.id,
+          orgId ?? ''
+        ),
+      })),
+    [vehiculos, consentimientos, orgId]
+  );
+
+  /* Contacto directo por WhatsApp (mismo constructor de enlaces). */
+  const contactar = useCallback(
+    async (v: VehiculoAdmin) => {
+      const telefono = v.contactoPropietario?.telefono ?? '';
+      const enlace = enlaceWhatsApp(telefono, mensajeContacto(v));
+
+      if (!enlace) {
+        await alerta({
+          titulo: 'Sin teléfono',
+          mensaje: 'El propietario no tiene un teléfono registrado.',
+          tipo: 'advertencia',
+        });
+        return;
+      }
+
+      if (user) {
+        void registrarAuditoria({
+          actorUid: user.uid,
+          actorCorreo: user.email,
+          actorRol: 'insurer_admin',
+          orgId,
+          accion: 'vehiculo.contactar',
+          entidad: 'vehiculos',
+          entidadId: v.id,
+          detalle: { placa: v.placa ?? '', propietarioUid: v.propietarioUid },
+        });
+      }
+
+      await abrirWhatsapp(enlace);
+    },
+    [alerta, orgId, user]
+  );
+
+  /*
+  Tarea programada: prepara los recordatorios de renovación
+  (correo mock + enlaces de WhatsApp) y evita duplicados del
+  mismo día. Muestra un resumen al terminar.
+  */
+  const ejecutarTarea = async () => {
+    if (!user || !orgId) return;
+
+    try {
+      setEjecutando(true);
+
+      const resumen = await ejecutarRecordatoriosRenovacion({
+        orgId,
+        organizacionNombre: organizacion?.nombre ?? 'tu aseguradora',
+        vehiculos,
+        consentimientos,
+        avisosExistentes: avisos,
+      });
+
+      await registrarAuditoria({
+        actorUid: user.uid,
+        actorCorreo: user.email,
+        actorRol: 'insurer_admin',
+        orgId,
+        accion: 'aviso.renovacion.ejecutar',
+        entidad: 'notificationLogs',
+        entidadId: orgId,
+        detalle: {
+          proximos: resumen.proximos,
+          correos: resumen.correosPreparados,
+          whatsapp: resumen.whatsappPreparados,
+          omitidos: resumen.correosOmitidos + resumen.whatsappOmitidos,
+          duplicados: resumen.duplicados,
+          sinAutorizacion: resumen.sinAutorizacion,
+        },
+      });
+
+      const lineas = [
+        `Vencen pronto: ${resumen.proximos}`,
+        `Con autorización: ${resumen.autorizados}`,
+        `Sin autorización: ${resumen.sinAutorizacion}`,
+        `Correos preparados: ${resumen.correosPreparados}`,
+        `WhatsApp preparados: ${resumen.whatsappPreparados}`,
+        `Omitidos: ${resumen.correosOmitidos + resumen.whatsappOmitidos}`,
+        `Ya registrados hoy: ${resumen.duplicados}`,
+      ];
+
+      await alerta({
+        titulo:
+          resumen.proximos === 0
+            ? 'Sin renovaciones próximas'
+            : 'Tarea ejecutada',
+        mensaje: lineas.join('\n'),
+        tipo: resumen.proximos === 0 ? 'info' : 'exito',
+      });
+    } catch {
+      await alerta({
+        titulo: 'No se pudo ejecutar',
+        mensaje: 'Intenta de nuevo en unos segundos.',
+        tipo: 'error',
+      });
+    } finally {
+      setEjecutando(false);
+    }
+  };
 
   const enviar = async () => {
     if (!user) return;
 
-    if (!vinculo) {
+    if (!vehiculo) {
       await alerta({
         titulo: 'Falta el vehículo',
         mensaje: 'Selecciona el vehículo al que enviarás el aviso.',
@@ -141,24 +297,24 @@ export default function AvisosAseguradora() {
       return;
     }
 
-    const optIn = conOptInComercial.has(vinculo.vehiculoId);
+    const optIn = conOptInComercial.has(vehiculo.id);
 
     try {
       setEnviando(true);
 
       const resultado = await prepararAvisoWhatsapp({
         orgId,
-        propietarioUid: vinculo.propietarioUid,
-        vehiculoId: vinculo.vehiculoId,
-        destino: vinculo.propietarioTelefono,
+        propietarioUid: vehiculo.propietarioUid,
+        vehiculoId: vehiculo.id,
+        destino: vehiculo.contactoPropietario?.telefono ?? '',
         plantilla,
         variables: {
-          propietario: vinculo.propietarioNombre ?? 'estimado cliente',
+          propietario: vehiculo.contactoPropietario?.nombre?.trim() || 'estimado cliente',
           aseguradora: organizacion?.nombre ?? 'tu aseguradora',
-          vehiculo: `${vinculo.marca} ${vinculo.modelo} (${vinculo.placa})`,
-          fecha: vinculo.vigencia ?? 'pronto',
+          vehiculo: `${vehiculo.marca} ${vehiculo.modelo} (${vehiculo.placa})`,
+          fecha: vehiculo.vencimientoSeguro ?? 'pronto',
         },
-        referencia: vinculo.id,
+        referencia: vehiculo.id,
         fecha: new Date().toISOString().slice(0, 10),
         optInComercial: optIn,
       });
@@ -170,7 +326,7 @@ export default function AvisosAseguradora() {
         orgId,
         accion: 'aviso.preparar',
         entidad: 'notificationLogs',
-        entidadId: vinculo.id,
+        entidadId: vehiculo.id,
         detalle: { plantilla, estado: resultado.estado },
       });
 
@@ -179,7 +335,7 @@ export default function AvisosAseguradora() {
           titulo: 'Aviso no enviado',
           mensaje:
             resultado.motivo === 'sin_telefono'
-              ? 'El propietario no autorizó compartir su teléfono.'
+              ? 'El propietario no tiene un teléfono registrado.'
               : resultado.motivo === 'sin_opt_in_comercial'
                 ? 'El propietario no autorizó comunicaciones comerciales.'
                 : 'No se pudo preparar el aviso.',
@@ -199,7 +355,7 @@ export default function AvisosAseguradora() {
       });
 
       setMostrarFormulario(false);
-      setVinculoId(null);
+      setVehiculoId(null);
     } catch {
       await alerta({
         titulo: 'No se pudo preparar el aviso',
@@ -236,10 +392,16 @@ export default function AvisosAseguradora() {
           <View style={styles.formulario}>
             <Text style={styles.formTitulo}>Preparar aviso</Text>
 
-            <Text style={styles.etiqueta}>Vehículo vinculado</Text>
-            {vinculos.length === 0 ? (
+            <Text style={styles.etiqueta}>Vehículo con tu seguro</Text>
+            {!clave ? (
               <Text style={styles.ayuda}>
-                No hay vehículos activos. Actívalos en la pestaña “Vehículos”.
+                Tu aseguradora aún no tiene una clave asignada. Pide al super
+                administrador que la configure.
+              </Text>
+            ) : vehiculos.length === 0 ? (
+              <Text style={styles.ayuda}>
+                Aún no hay vehículos con tu seguro. Aparecerán cuando un
+                propietario registre una póliza con tu aseguradora.
               </Text>
             ) : (
               <ScrollView
@@ -247,19 +409,19 @@ export default function AvisosAseguradora() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chips}
               >
-                {vinculos.map((v) => (
+                {vehiculos.map((v) => (
                   <Pressable
                     key={v.id}
-                    style={[styles.chip, vinculoId === v.id && styles.chipActivo]}
-                    onPress={() => setVinculoId(v.id)}
+                    style={[styles.chip, vehiculoId === v.id && styles.chipActivo]}
+                    onPress={() => setVehiculoId(v.id)}
                   >
                     <Text
                       style={[
                         styles.chipTexto,
-                        vinculoId === v.id && styles.chipTextoActivo,
+                        vehiculoId === v.id && styles.chipTextoActivo,
                       ]}
                     >
-                      {v.placa || v.vehiculoId.slice(0, 6)}
+                      {v.placa || v.id.slice(0, 6)}
                     </Text>
                   </Pressable>
                 ))}
@@ -300,13 +462,13 @@ export default function AvisosAseguradora() {
                       <Ionicons
                         name="radio-button-on"
                         size={18}
-                        color={Paleta.acento}
+                        color={paleta.acento}
                       />
                     ) : (
                       <Ionicons
                         name="radio-button-off"
                         size={18}
-                        color={Paleta.textoSuave}
+                        color={paleta.textoSuave}
                       />
                     )}
                   </Pressable>
@@ -327,13 +489,100 @@ export default function AvisosAseguradora() {
                 variante="secundario"
                 onPress={() => {
                   setMostrarFormulario(false);
-                  setVinculoId(null);
+                  setVehiculoId(null);
                 }}
                 style={styles.botonForm}
               />
             </View>
           </View>
         )}
+
+        <View style={styles.renovaciones}>
+          <View style={styles.renovacionesCabecera}>
+            <View style={styles.renovacionesIcono}>
+              <Ionicons name="time-outline" size={20} color={paleta.acento} />
+            </View>
+
+            <View style={styles.renovacionesTextos}>
+              <Text style={styles.renovacionesTitulo}>Renovaciones próximas</Text>
+              <Text style={styles.renovacionesSubtitulo}>
+                Vencen en los próximos {UMBRAL_DIAS_DEFAULT} días
+              </Text>
+            </View>
+
+            <View style={styles.contador}>
+              <Text style={styles.contadorTexto}>{proximas.length}</Text>
+            </View>
+          </View>
+
+          {proximas.length === 0 ? (
+            <Text style={styles.renovacionesVacio}>
+              Ningún vehículo con tu seguro vence pronto.
+            </Text>
+          ) : (
+            <View style={styles.renovacionesLista}>
+              {proximas.map(({ vehiculo: v, dias, autorizado }) => (
+                <View key={v.id} style={styles.renovacionFila}>
+                  <View style={styles.renovacionInfo}>
+                    <Text style={styles.renovacionPlaca}>
+                      {v.placa || v.id.slice(0, 6)}
+                    </Text>
+                    <Text style={styles.renovacionDetalle}>
+                      {v.marca} {v.modelo} · vence {v.vencimientoSeguro ?? 'sin fecha'}
+                    </Text>
+
+                    <Pressable
+                      style={styles.contacto}
+                      onPress={() => contactar(v)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Contactar por WhatsApp"
+                    >
+                      <Ionicons name="logo-whatsapp" size={14} color={paleta.primario} />
+                      <Text style={styles.contactoTexto}>Contactar por WhatsApp</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.renovacionEstado}>
+                    <Text
+                      style={[
+                        styles.renovacionDias,
+                        dias !== null && dias <= 7 && styles.renovacionDiasUrgente,
+                      ]}
+                    >
+                      {dias === null ? '—' : dias === 0 ? 'Hoy' : `${dias} d`}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.renovacionAutorizado,
+                        autorizado
+                          ? styles.renovacionAutorizadoSi
+                          : styles.renovacionAutorizadoNo,
+                      ]}
+                    >
+                      {autorizado ? 'Autorizado' : 'Sin autorización'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <BotonNitro
+            titulo="Ejecutar tarea programada"
+            icono="refresh"
+            variante="oscuro"
+            onPress={ejecutarTarea}
+            cargando={ejecutando}
+            deshabilitado={proximas.length === 0}
+            style={styles.botonTarea}
+          />
+
+          <Text style={styles.renovacionesNota}>
+            El correo se registra como omitido (la aseguradora no ve el correo
+            del propietario) y el WhatsApp como enlace para enviar a mano. Solo
+            se avisa si el propietario autorizó sus datos.
+          </Text>
+        </View>
 
         <Text style={styles.seccionTitulo}>Historial ({avisos.length})</Text>
 
@@ -344,20 +593,39 @@ export default function AvisosAseguradora() {
             avisos.map((aviso) => (
               <View key={aviso.id} style={styles.tarjeta}>
                 <View style={styles.tarjetaCabecera}>
-                  <Text style={styles.tarjetaTitulo}>
-                    {PLANTILLAS[aviso.plantilla as PlantillaWhatsapp]?.titulo ??
-                      aviso.plantilla}
-                  </Text>
+                  <View style={styles.tarjetaTituloCaja}>
+                    <Text style={styles.tarjetaTitulo}>
+                      {ETIQUETA_PLANTILLA[aviso.plantilla] ?? aviso.plantilla}
+                    </Text>
+
+                    <View style={styles.canalBadge}>
+                      <Ionicons
+                        name={
+                          aviso.canal === 'email'
+                            ? 'mail-outline'
+                            : aviso.canal === 'local'
+                              ? 'notifications-outline'
+                              : 'logo-whatsapp'
+                        }
+                        size={11}
+                        color={paleta.textoSecundario}
+                      />
+                      <Text style={styles.canalTexto}>
+                        {ETIQUETA_CANAL[aviso.canal] ?? aviso.canal}
+                      </Text>
+                    </View>
+                  </View>
+
                   <View
                     style={[
                       styles.estado,
-                      { borderColor: colorAviso(aviso.estado) },
+                      { borderColor: colorAviso(paleta, aviso.estado) },
                     ]}
                   >
                     <Text
                       style={[
                         styles.estadoTexto,
-                        { color: colorAviso(aviso.estado) },
+                        { color: colorAviso(paleta, aviso.estado) },
                       ]}
                     >
                       {ETIQUETA_ESTADO_AVISO[aviso.estado] ?? aviso.estado}
@@ -385,7 +653,7 @@ export default function AvisosAseguradora() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: Paleta.fondo },
   contenido: { paddingBottom: 44 },
   botonNuevo: { marginHorizontal: 16, marginTop: -24 },
@@ -441,11 +709,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: Paleta.fondo,
   },
-  opcionActiva: { borderColor: Paleta.tinta, backgroundColor: Paleta.tinta },
+  opcionActiva: { borderColor: Paleta.bordeDuro, backgroundColor: Paleta.tinta },
   opcionTextos: { flex: 1 },
   opcionTitulo: { fontSize: 13.5, fontWeight: '800', color: Paleta.texto },
   opcionTituloActivo: { color: Paleta.acento },
-  opcionNota: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  opcionNota: { fontSize: 11, color: Paleta.textoSuave, marginTop: 2 },
   formAcciones: { flexDirection: 'row', gap: 10, marginTop: 16 },
   botonForm: { flex: 1 },
   seccionTitulo: {
@@ -490,4 +758,105 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   estadoTexto: { fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+
+  /* Renovaciones próximas */
+  renovaciones: {
+    backgroundColor: Paleta.tarjeta,
+    borderRadius: Radios.tarjeta,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 24,
+    gap: 12,
+    ...Sombras.suave,
+  },
+  renovacionesCabecera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  renovacionesIcono: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Paleta.tinta,
+    borderWidth: 2,
+    borderColor: Paleta.bordeDuro,
+  },
+  renovacionesTextos: { flex: 1 },
+  renovacionesTitulo: { fontSize: 15, fontWeight: '900', color: Paleta.texto },
+  renovacionesSubtitulo: {
+    fontSize: 12,
+    color: Paleta.textoSecundario,
+    marginTop: 2,
+  },
+  contador: {
+    minWidth: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radios.pastilla,
+    backgroundColor: Paleta.acento,
+    borderWidth: 2,
+    borderColor: Paleta.bordeDuro,
+    alignItems: 'center',
+  },
+  contadorTexto: { fontSize: 14, fontWeight: '900', color: Paleta.tinta },
+  renovacionesVacio: {
+    fontSize: 13,
+    color: Paleta.textoSecundario,
+    textAlign: 'center',
+  },
+  renovacionesLista: { gap: 8 },
+  renovacionFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: Paleta.borde,
+    borderRadius: Radios.suave,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Paleta.fondo,
+  },
+  renovacionInfo: { flex: 1, gap: 4 },
+  renovacionPlaca: { fontSize: 13.5, fontWeight: '900', color: Paleta.texto },
+  renovacionDetalle: { fontSize: 11.5, color: Paleta.textoSecundario },
+  contacto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  contactoTexto: { fontSize: 11.5, fontWeight: '800', color: Paleta.primario },
+  renovacionEstado: { alignItems: 'flex-end', gap: 4 },
+  renovacionDias: { fontSize: 13, fontWeight: '900', color: Paleta.texto },
+  renovacionDiasUrgente: { color: Paleta.peligro },
+  renovacionAutorizado: { fontSize: 10, fontWeight: '800' },
+  renovacionAutorizadoSi: { color: Paleta.exito },
+  renovacionAutorizadoNo: { color: Paleta.advertencia },
+  botonTarea: { marginTop: 4 },
+  renovacionesNota: {
+    fontSize: 11.5,
+    color: Paleta.textoSuave,
+    lineHeight: 17,
+  },
+
+  /* Historial: canal y título */
+  tarjetaTituloCaja: { flex: 1, gap: 4 },
+  canalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radios.pastilla,
+    backgroundColor: Paleta.fondo,
+    borderWidth: 1,
+    borderColor: Paleta.borde,
+  },
+  canalTexto: { fontSize: 10, fontWeight: '800', color: Paleta.textoSecundario },
 });

@@ -53,7 +53,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Gradientes, Paleta, Radios, Sombras } from '@/constants/theme';
+import { Gradientes, Radios, Sombras, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 
 /* -------------------------------------------------------
    TIPOS
@@ -88,6 +89,8 @@ export function NotificationBannerProvider({
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const [actual, setActual] = useState<BannerOptions | null>(null);
 
@@ -207,7 +210,7 @@ export function NotificationBannerProvider({
             <Ionicons
               name="chevron-forward"
               size={18}
-              color={Paleta.textoSuave}
+              color={paleta.textoSuave}
             />
           </Pressable>
         </Animated.View>
@@ -220,7 +223,7 @@ export function NotificationBannerProvider({
    ESTILOS
    ------------------------------------------------------- */
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   capa: {
     position: 'absolute',
     top: 0,

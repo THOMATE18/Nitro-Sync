@@ -10,7 +10,7 @@ una organización asignada.
 Pestañas:
 
   inicio       -> resumen de la organización
-  vinculos     -> vehículos vinculados (proyección)
+  vinculos     -> vehículos con el seguro de la aseguradora
   polizas      -> pólizas y ofertas de renovación
   suscripcion  -> plan mensual y pagos
   avisos       -> avisos enviados por WhatsApp
@@ -24,11 +24,12 @@ redirige a la app principal.
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 
-import { Paleta } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useTema } from '@/context/TemaContext';
 
 export default function InsurerLayout() {
   const { esAseguradora, loading } = useAuth();
+  const { paleta } = useTema();
 
   if (loading) return null;
 
@@ -40,12 +41,12 @@ export default function InsurerLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Paleta.primario,
-        tabBarInactiveTintColor: Paleta.textoSuave,
+        tabBarActiveTintColor: paleta.primario,
+        tabBarInactiveTintColor: paleta.textoSuave,
         tabBarStyle: {
-          backgroundColor: Paleta.tarjeta,
+          backgroundColor: paleta.tarjeta,
           borderTopWidth: 2,
-          borderTopColor: Paleta.tinta,
+          borderTopColor: paleta.bordeDuro,
           paddingTop: 6,
         },
         tabBarLabelStyle: {

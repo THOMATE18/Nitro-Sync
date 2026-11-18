@@ -5,12 +5,15 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { Paleta, Radios, sombraDura } from '@/constants/theme';
+import { Radios, sombraDura, type TipoPaleta } from '@/constants/theme';
+import { useEstilos, useTema } from '@/context/TemaContext';
 import { useVehiculos } from '@/context/VehiculosContext';
 import { resumirVehiculos } from '@/utils/admin';
 
 export default function MisSegurosResumen() {
   const { vehiculos } = useVehiculos();
+  const styles = useEstilos(crearEstilos);
+  const { paleta } = useTema();
 
   const resumen = useMemo(() => resumirVehiculos(vehiculos), [vehiculos]);
 
@@ -29,7 +32,7 @@ export default function MisSegurosResumen() {
       accessibilityLabel="Abrir mis seguros"
     >
       <View style={styles.icono}>
-        <Ionicons name="shield-checkmark" size={24} color={Paleta.tinta} />
+        <Ionicons name="shield-checkmark" size={24} color={paleta.tinta} />
       </View>
 
       <View style={styles.textos}>
@@ -45,12 +48,12 @@ export default function MisSegurosResumen() {
         </Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={20} color={Paleta.tinta} />
+      <Ionicons name="chevron-forward" size={20} color={paleta.tinta} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (Paleta: TipoPaleta) => StyleSheet.create({
   tarjeta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -58,10 +61,16 @@ const styles = StyleSheet.create({
     backgroundColor: Paleta.acento,
     borderRadius: Radios.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     padding: 14,
     marginBottom: 16,
-    ...sombraDura(4, 4),
+    /*
+    El color de la sombra sigue el tema: en oscuro usa
+    `bordeDuro` (claro) para que el sello "sticker" siga
+    visible sobre el fondo oscuro; en claro queda igual que
+    antes (tinta).
+    */
+    ...sombraDura(4, 4, Paleta.bordeDuro),
   },
   icono: {
     width: 46,
@@ -69,7 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: Paleta.tarjeta,
     borderWidth: 2,
-    borderColor: Paleta.tinta,
+    borderColor: Paleta.bordeDuro,
     alignItems: 'center',
     justifyContent: 'center',
   },
